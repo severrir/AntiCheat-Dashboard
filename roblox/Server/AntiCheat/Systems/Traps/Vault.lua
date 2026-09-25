@@ -82,39 +82,20 @@ function Vault.Check(profile, pos)
 	return false
 end
 
--- the server smooths big client teleports, so a jump into the vault shows up as a few huge steps
--- heading at it and movement snaps them back before they "arrive". a long jump aimed dead at a hidden
--- box 40 studs wide from thousands of studs away is just as much proof as being inside it
-function Vault.Aimed(profile, from, to)
+-- the server smooths big client teleports, so a jump into the vault shows up as a few huge
+-- steps heading at it. movement asks this before snapping them back, and holds off for a moment
+-- if they're on their way in so they actually arrive and trip it
+local HEADING = math.cos(math.rad(4))
+
+function Vault.Heading(from, to)
 	local dir = to - from
 	if dir.Magnitude < 1 then
 		return false
 	end
+	dir = dir.Unit
 	for _, zone in zones do
-		local o = zone.cf:PointToObjectSpace(from)
-		local d = zone.cf:VectorToObjectSpace(dir)
-		local h = zone.half
-		local tmin, tmax = 0, math.huge
-		local hit = true
-		for _, axis in { "X", "Y", "Z" } do
-			local oa, da, ha = o[axis], d[axis], h[axis]
-			if math.abs(da) < 1e-9 then
-				if math.abs(oa) > ha then
-					hit = false
-					break
-				end
-			else
-				local t1, t2 = (-ha - oa) / da, (ha - oa) / da
-				tmin = math.max(tmin, math.min(t1, t2))
-				tmax = math.min(tmax, math.max(t1, t2))
-				if tmin > tmax then
-					hit = false
-					break
-				end
-			end
-		end
-		if hit then
-			Honeypot.Trip(profile, "TrapVault")
+		local toZone = zone.cf.Position - from
+		if toZone.Magnitude > 1 and dir:Dot(toZone.Unit) >= HEADING then
 			return true
 		end
 	end

@@ -49,6 +49,9 @@ function Movement.Step(profile, now)
 	if Config.On("TrapVault") and Vault.Check(profile, pos) then
 		return
 	end
+	if profile.vaultWatch and now >= profile.vaultWatch then
+		profile.vaultWatch = nil
+	end
 
 	-- vehicles, exemptions: just follow along
 	if not profile.move or hum.SeatPart or profile:IsExempt("Movement", now) then
@@ -98,8 +101,14 @@ function Movement.Step(profile, now)
 	end
 
 	if verdict then
-		if verdict.kind == "Teleport" and verdict.ctx.dist > 200 and Config.On("TrapVault") then
-			Vault.Aimed(profile, Vector3.new(fromX, fromY, fromZ), pos)
+		if
+			not profile.vaultWatch
+			and verdict.kind == "Teleport"
+			and verdict.ctx.dist > 200
+			and Config.On("TrapVault")
+			and Vault.Heading(Vector3.new(fromX, fromY, fromZ), pos)
+		then
+			profile.vaultWatch = now + 1.5
 		end
 		Trust.Flag(profile, "Movement", verdict.severity, {
 			kind = verdict.kind,
@@ -110,6 +119,11 @@ function Movement.Step(profile, now)
 			rise = verdict.ctx.rise,
 			part = verdict.ctx.part,
 		})
+		-- headed for the vault: let them land in it instead of yanking them back mid-flight
+		if profile.vaultWatch and now < profile.vaultWatch then
+			return
+		end
+		profile.vaultWatch = nil
 		snapBack(profile, s, now)
 	end
 end
