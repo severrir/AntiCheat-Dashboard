@@ -105,12 +105,16 @@ function Movement.Step(profile, now)
 		if profile.vaultWatch then
 			return
 		end
+		-- the first smoothed step of a long teleport can be small enough to look like plain speed.
+		-- once per 10s at most, so running at the vault can't buy free time over and over
 		if
-			verdict.kind == "Teleport"
+			(verdict.kind == "Teleport" or verdict.kind == "Speed")
 			and Config.On("TrapVault")
+			and now - (profile.vaultWatchAt or -math.huge) > 10
 			and Vault.Heading(Vector3.new(fromX, fromY, fromZ), pos)
 		then
 			profile.vaultWatch = now + 1.5
+			profile.vaultWatchAt = now
 		end
 		Trust.Flag(profile, "Movement", verdict.severity, {
 			kind = verdict.kind,
