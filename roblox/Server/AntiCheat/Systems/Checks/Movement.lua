@@ -101,9 +101,12 @@ function Movement.Step(profile, now)
 	end
 
 	if verdict then
+		-- already on their way into the vault, it'll catch them when they land
+		if profile.vaultWatch then
+			return
+		end
 		if
-			not profile.vaultWatch
-			and verdict.kind == "Teleport"
+			verdict.kind == "Teleport"
 			and verdict.ctx.dist > 200
 			and Config.On("TrapVault")
 			and Vault.Heading(Vector3.new(fromX, fromY, fromZ), pos)
@@ -120,10 +123,9 @@ function Movement.Step(profile, now)
 			part = verdict.ctx.part,
 		})
 		-- headed for the vault: let them land in it instead of yanking them back mid-flight
-		if profile.vaultWatch and now < profile.vaultWatch then
+		if profile.vaultWatch then
 			return
 		end
-		profile.vaultWatch = nil
 		snapBack(profile, s, now)
 	end
 end
