@@ -107,7 +107,6 @@ function Movement.Step(profile, now)
 		end
 		if
 			verdict.kind == "Teleport"
-			and verdict.ctx.dist > 200
 			and Config.On("TrapVault")
 			and Vault.Heading(Vector3.new(fromX, fromY, fromZ), pos)
 		then
