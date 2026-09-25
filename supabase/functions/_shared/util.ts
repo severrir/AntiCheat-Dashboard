@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 export const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-export const DASHBOARD = "https://severrir.github.io/anticheat-dashboard/";
+export const DASHBOARD = "https://severrir.github.io/AntiCheat-Dashboard/";
 
 export const db = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },

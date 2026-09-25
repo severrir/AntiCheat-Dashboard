@@ -26,9 +26,9 @@ const csp: Plugin = {
   },
 }
 
-// served from severrir.github.io/anticheat-dashboard/
+// relative so it works under any repo name on github pages (routing is all in the hash)
 export default defineConfig({
-  base: '/anticheat-dashboard/',
+  base: './',
   plugins: [react(), tailwindcss(), csp],
   build: { sourcemap: false },
 })

@@ -72,7 +72,7 @@ Config.Definitive = {
 
 Config.KickMessage = "You were disconnected. If this keeps happening, contact the developers."
 Config.BanMessage = "You are banned from this experience."
-Config.AppealUrl = "https://severrir.github.io/anticheat-dashboard/#/appeal"
+Config.AppealUrl = "https://severrir.github.io/AntiCheat-Dashboard/#/appeal"
 
 Config.HotRate = 10
 Config.ColdRate = 0.5

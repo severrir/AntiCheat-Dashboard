@@ -35,7 +35,7 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
   return (
     <div className="space-y-5">
       <a
-        href="https://github.com/severrir/anticheat-dashboard/actions"
+        href="https://github.com/severrir/AntiCheat-Dashboard/actions"
         target="_blank"
         rel="noopener noreferrer"
         className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel/80 px-4 py-3 text-sm hover:border-good/40"

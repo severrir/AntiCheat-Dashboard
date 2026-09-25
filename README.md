@@ -1,10 +1,10 @@
 # anticheat-dashboard
 
-![anticheat tests](https://severrir.github.io/anticheat-dashboard/badge.svg)
+![anticheat tests](https://severrir.github.io/AntiCheat-Dashboard/badge.svg)
 
 Server-side anticheat for Roblox, built on my own Framework + Net, plus the staff console that watches it.
 
-Live at https://severrir.github.io/anticheat-dashboard/
+Live at https://severrir.github.io/AntiCheat-Dashboard/
 
 - `roblox/` – the game side
 - `supabase/` – database, edge functions (game ingest, discord bot, alerts, daily report, global bans)
