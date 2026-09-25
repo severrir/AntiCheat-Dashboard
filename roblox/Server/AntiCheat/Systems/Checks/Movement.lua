@@ -16,13 +16,30 @@ local Movement = { Name = "ACMovement", Feature = "Movement", Rate = "hot" }
 local Trust
 local Vault
 
+-- point buried inside a block part, not just touching it. the root is 2 studs wide,
+-- so a real player's center never gets this deep into a wall
+local DEEP = 0.5
+local function buried(part, point)
+	if not (part:IsA("Part") and part.Shape == Enum.PartType.Block) then
+		return false
+	end
+	local p = part.CFrame:PointToObjectSpace(point)
+	local h = part.Size / 2
+	return math.abs(p.X) < h.X - DEEP and math.abs(p.Y) < h.Y - DEEP and math.abs(p.Z) < h.Z - DEEP
+end
+
 local env = {
-	-- solid thing between two points, checked from both sides (a real wall, not a grazed corner)
+	-- solid thing between two points, checked from both sides (a real wall, not a grazed corner).
+	-- a slow walk through a thin wall can land a sample inside it and rays don't hit from the
+	-- inside, so ending up buried in the part we hit counts too
 	wall = function(ax, ay, az, bx, by, bz)
 		local a, b = Vector3.new(ax, ay, az), Vector3.new(bx, by, bz)
 		local forward = Physics.Cast(a, b - a)
 		if not forward then
 			return false
+		end
+		if buried(forward.Instance, b) then
+			return true, forward.Instance.Name
 		end
 		local back = Physics.Cast(b, a - b)
 		if back and back.Instance == forward.Instance then
