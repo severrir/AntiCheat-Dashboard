@@ -97,8 +97,19 @@ function Movement.Step(profile, now)
 		return
 	end
 
-	-- flying: far off the ground and not falling for too long
 	local climbing = state == State.Climbing or state == State.Swimming
+
+	-- super jump: going up way faster than a jump can. launch pads etc should Exempt first
+	local jumpSpeed = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
+	local rise = delta.Y / dt
+	if not climbing and rise > jumpSpeed * 1.4 + 8 then
+		record(profile, now, pos, allowed, wasSnapped)
+		TrustService.Flag(profile, "Movement", 15, { kind = "SuperJump", rise = rise, max = jumpSpeed })
+		snapBack(profile, m, m.lastGrounded, now)
+		return
+	end
+
+	-- flying: far off the ground and not falling for too long
 	if not ground and not climbing then
 		if delta.Y / dt > -8 then
 			m.air += dt

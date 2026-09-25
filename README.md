@@ -41,10 +41,11 @@ AntiCheat.Exempt(player, "Movement", 2)
 
 local attack = AntiCheat.Remote.new("Attack", { Args = { "Instance:Model", "Vector3?" }, Rate = 8 })
 attack:Connect(function(player, target, dir)
-	if AntiCheat.Combat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
-		-- damage
-	else
+	if not target then
+		-- swung at nothing, still counts toward accuracy stats
 		AntiCheat.Combat.RecordMiss(player)
+	elseif AntiCheat.Combat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
+		-- damage
 	end
 end)
 ```
