@@ -69,7 +69,7 @@ local function punish(profile, breakdown, score)
 	end
 	Enforcement.Kicked:Fire(player, reason, score)
 
-	task.spawn(function()
+	task.spawn(Backend.Track, function()
 		local replayId = replay and Recorder.Upload(replay)
 		Backend.QueueKick(profile, reason, score, replayId, sig)
 		Backend.Sync()

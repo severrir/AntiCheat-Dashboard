@@ -23,6 +23,7 @@ local pending, pendingCount = {}, 0
 local kicks, acks, departed = {}, {}, {}
 local since = nil
 local syncing = false
+local inflight = 0
 local key
 
 local function round(n, places)
@@ -48,6 +49,17 @@ function Backend.Post(body)
 	end
 	local decoded, data = pcall(HttpService.JSONDecode, HttpService, res.Body)
 	return if decoded then data else nil
+end
+
+-- runs fn and keeps the server alive for it on shutdown. kick uploads go through here,
+-- otherwise kicking the last player closes the server before the kick is ever sent
+function Backend.Track(fn)
+	inflight += 1
+	local ok, err = pcall(fn)
+	inflight -= 1
+	if not ok then
+		warn("[AntiCheat] " .. tostring(err))
+	end
 end
 
 function Backend.QueueFlag(profile, check, raw, amount, score, ctx, pos)
@@ -214,9 +226,12 @@ function Backend:Start()
 	end)
 
 	game:BindToClose(function()
-		if not RunService:IsStudio() then
-			Backend.Sync()
+		-- studio stop shouldn't hang for long
+		local deadline = os.clock() + (if RunService:IsStudio() then 5 else 25)
+		while (inflight > 0 or syncing) and os.clock() < deadline do
+			task.wait(0.1)
 		end
+		Backend.Sync()
 	end)
 end
 
