@@ -17,8 +17,8 @@ function Heartbeat:Start()
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		beat:FireServer(seq, {
 			ws = hum and hum.WalkSpeed or nil,
-			jp = hum and hum.JumpPower or nil,
-			jh = hum and hum.JumpHeight or nil,
+			-- launch speed, so flipping UseJumpPower locally doesn't hide a boost
+			jv = hum and (if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)) or nil,
 			g = workspace.Gravity,
 			hum = if char then hum ~= nil else nil,
 		})

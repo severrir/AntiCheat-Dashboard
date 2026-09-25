@@ -21,7 +21,12 @@ local function detailOf(ctx)
 		return nil
 	end
 	if type(ctx.speed) == "number" and type(ctx.allowed) == "number" and ctx.allowed > 0 then
-		return string.format("x%.1f", math.floor(ctx.speed / ctx.allowed * 2) / 2)
+		local ratio = ctx.speed / ctx.allowed
+		-- teleport ratios are basically random, bucket them or no two kicks ever match
+		if ratio >= 10 then
+			return "x10+"
+		end
+		return string.format("x%.1f", math.floor(ratio * 2) / 2)
 	end
 	if type(ctx.client) == "number" then
 		return string.format("=%d", math.floor(ctx.client / 5) * 5)

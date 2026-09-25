@@ -47,9 +47,9 @@ local function onBeat(player, seq, report)
 		local ws = report.ws
 		mismatch("LocalWalkSpeed", type(ws) == "number" and ws > hum.WalkSpeed + 0.5, { client = ws, server = hum.WalkSpeed })
 
-		local jump = if hum.UseJumpPower then hum.JumpPower else hum.JumpHeight
-		local reported = if hum.UseJumpPower then report.jp else report.jh
-		mismatch("LocalJump", type(reported) == "number" and reported > jump + 0.5, { client = reported, server = jump })
+		local jump = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
+		local reported = report.jv
+		mismatch("LocalJump", type(reported) == "number" and reported > jump + 1, { client = reported, server = jump })
 
 		mismatch("LocalHumanoidGone", report.hum == false, {})
 	end
