@@ -111,12 +111,15 @@ local function snapshot(profile, now)
 end
 
 function Backend.NoteLeft(profile)
-	table.insert(departed, snapshot(profile, os.clock()))
+	if not profile.admin then
+		table.insert(departed, snapshot(profile, os.clock()))
+	end
 end
 
+-- returns false only when the request actually failed
 function Backend.Sync()
 	if syncing then
-		return false
+		return true
 	end
 	syncing = true
 

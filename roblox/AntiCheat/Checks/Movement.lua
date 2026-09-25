@@ -8,7 +8,7 @@ local State = Enum.HumanoidStateType
 local Movement = { Name = "Movement", Rate = "hot" }
 
 -- how many seconds of "standing still" you can bank for lag catch-up
-local CREDIT_SECONDS = 1.2
+local CREDIT_SECONDS = 0.6
 local BUDGET_LIMIT = 12
 local DOWN = Vector3.new(0, -1, 0)
 
@@ -132,9 +132,13 @@ function Movement.Step(profile, now)
 	record(profile, now, pos, allowed, wasSnapped)
 	m.lastPos = pos
 	m.lastT = now
-	m.lastValid = root.CFrame
-	if ground or climbing then
-		m.lastGrounded = root.CFrame
+	-- only trust spots where they weren't already running on borrowed speed,
+	-- otherwise a snapback just moves them one step back
+	if m.budget <= 0 then
+		m.lastValid = root.CFrame
+		if ground or climbing then
+			m.lastGrounded = root.CFrame
+		end
 	end
 end
 

@@ -65,8 +65,9 @@ function ClientIntegrity.Init()
 	-- random name each server, the client finds it by attribute
 	local remote = RemoteGuard.new(string.sub(HttpService:GenerateGUID(false), 1, 8), {
 		Args = { "integer", "table?" },
+		-- roomy burst: after a server hitch the queued beats all land at once
 		Rate = 1,
-		Burst = 3,
+		Burst = 10,
 		Parent = ReplicatedStorage,
 	})
 	remote.Instance:SetAttribute("ci", true)

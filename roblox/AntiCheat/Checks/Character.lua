@@ -2,6 +2,16 @@ local TrustService = require(script.Parent.Parent.Core.TrustService)
 
 local Character = { Name = "Character", Rate = "hot" }
 
+local function countParts(char)
+	local parts = 0
+	for _, d in char:GetChildren() do
+		if d:IsA("BasePart") then
+			parts += 1
+		end
+	end
+	return parts
+end
+
 local function respawn(profile)
 	-- the character is in a state we can't trust anymore, give them a fresh one
 	profile:UnbindCharacter()
@@ -48,22 +58,28 @@ function Character.Step(profile, now)
 		return
 	end
 
-	if profile.rootSize and root.Size ~= profile.rootSize then
+	-- avatar loading scales the root and swaps limbs, so wait before taking a baseline
+	if not profile.partCount then
+		if now - (profile.boundAt or now) < 5 then
+			return
+		end
+		profile.partCount = countParts(char)
+		profile.rootSize = root.Size
+		profile.lastLimbCheck = now
+		return
+	end
+
+	if root.Size ~= profile.rootSize then
 		TrustService.Flag(profile, "Character", 25, { kind = "RootResized" })
 		root.Size = profile.rootSize
 		return
 	end
 
 	-- only check limbs every so often, GetChildren isn't free
-	if now - (profile.lastLimbCheck or 0) > 2 then
+	if now - profile.lastLimbCheck > 2 then
 		profile.lastLimbCheck = now
-		local parts = 0
-		for _, d in char:GetChildren() do
-			if d:IsA("BasePart") then
-				parts += 1
-			end
-		end
-		if profile.partCount and parts < profile.partCount then
+		local parts = countParts(char)
+		if parts < profile.partCount then
 			TrustService.Flag(profile, "Character", 15, { kind = "LimbRemoved", parts = parts, expected = profile.partCount })
 			profile.partCount = parts
 		end

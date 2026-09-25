@@ -49,6 +49,8 @@ attack:Connect(function(player, target, dir)
 end)
 ```
 
+Morphs, character scaling or removing limbs on purpose? Call `AntiCheat.Exempt(player, "Character", 3)` first.
+
 Set WalkSpeed / JumpPower on the server. The movement check reads the server's values, so a sprint that only changes speed on the client will get flagged.
 
 ## Setup notes

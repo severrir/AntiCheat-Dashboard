@@ -37,14 +37,17 @@ function Enforcement.Evaluate(profile, now)
 		end
 	end
 
-	-- one noisy check alone isn't enough, wait for something else to agree
-	if not definitive and distinct < T.MinCorroboratingChecks then
-		return
-	end
-
-	if not definitive and not ForensicReplay.Confirm(profile, breakdown, now) then
-		profile:Scale(0.5, now)
-		return
+	if not definitive then
+		-- movement can prove itself through replay, so it doesn't need a second check
+		local confirmed = ForensicReplay.Confirm(profile, breakdown, now)
+		if not confirmed then
+			profile:Scale(0.5, now)
+			return
+		end
+		-- anything else alone is too noisy, wait for another check to agree
+		if distinct < T.MinCorroboratingChecks and breakdown[1].check ~= "Movement" then
+			return
+		end
 	end
 
 	profile.kicked = true

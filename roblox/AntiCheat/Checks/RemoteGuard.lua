@@ -56,7 +56,8 @@ local function valid(player, value, spec, maxLen)
 		return spec.optional
 	end
 	if spec.custom then
-		return spec.custom(value) == true
+		local ok, result = pcall(spec.custom, value)
+		return ok and result == true
 	end
 	local kind = spec.kind
 	if kind == "any" then

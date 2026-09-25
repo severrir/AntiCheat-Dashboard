@@ -124,14 +124,10 @@ function PlayerProfile:BindCharacter(char)
 	self.humanoid, self.root = humanoid, root
 	Physics.Track(char)
 
-	local parts = 0
-	for _, d in char:GetChildren() do
-		if d:IsA("BasePart") then
-			parts += 1
-		end
-	end
-	self.partCount = parts
-	self.rootSize = self.root and self.root.Size
+	-- the character check takes its baseline a few seconds later, once the avatar has loaded
+	self.boundAt = os.clock()
+	self.partCount = nil
+	self.rootSize = nil
 
 	self.move = nil
 	self.times:Clear()
