@@ -1,35 +1,76 @@
 # anticheat-dashboard
 
-Server-side anticheat for Roblox plus the staff console that watches it.
+![anticheat tests](https://severrir.github.io/anticheat-dashboard/badge.svg)
 
-- `roblox/` – the game side. Drop `AntiCheat` into ServerScriptService and `Client/InputHandler` into StarterPlayerScripts.
-- `supabase/` – the ingest function the game servers talk to.
-- `src/` – the dashboard (React + Vite + Tailwind), deployed to GitHub Pages on every push to `main`.
+Server-side anticheat for Roblox, built on my own Framework + Net, plus the staff console that watches it.
 
 Live at https://severrir.github.io/anticheat-dashboard/
+
+- `roblox/` – the game side
+- `supabase/` – database, edge functions (game ingest, discord bot, alerts, daily report, global bans)
+- `src/` – the dashboard (React + Vite + Tailwind + three.js), deployed to GitHub Pages on every push to `main`
+
+## Install
+
+| From repo | Into Studio |
+| --- | --- |
+| `roblox/Shared/Framework.lua`, `Net.lua` | `ReplicatedStorage.Shared` |
+| `roblox/Server/AntiCheat` | `ServerScriptService.AntiCheat` |
+| `roblox/Client/AntiCheatClient` | `StarterPlayerScripts.AntiCheatClient` (LocalScript, modules as children) |
+
+`AntiCheat/Boot.server.lua` adds the systems to Framework and starts it. If your game already boots Framework itself, delete Boot and call `Framework.AddDeep(ServerScriptService.AntiCheat.Systems)` from your own boot script before `Framework.Start()`.
+
+Enable HttpService. The game key is **not** in this repo: in Studio it goes in `AntiCheat/ServerKey` (gitignored), in live servers it's an experience secret named `anticheat_key`.
+
+### Net hook
+
+The anticheat watches every `Net` remote through two optional hooks added to `Net.lua` (fully backwards compatible, nil by default):
+
+- `Net.Middleware(player, name, ...) -> boolean` runs after the cooldown/type checks, return false to drop the call
+- `Net.OnReject(player, name, reason)` fires on `"cooldown"` or `"types"` rejects
+
+So your own remotes get flood, bad-argument and macro detection without changing anything.
 
 ## How it fits together
 
 ```
-game server --(every 20s, x-game-key)--> edge function "game" --> postgres
-                                                                    |
-dashboard (discord login, RLS) <------ realtime --------------------+
+game server --(sync 20s / pulse 5s)--> edge fn "game" --> postgres --realtime--> dashboard
+     ^                                                      |
+     |-- MessagingService <-- edge fn "notify" <-- ban trigger (instant global bans)
+discord <-- alerts with picture, daily report, /check /ban /unban /replay bot
 ```
 
-Checks never punish anyone directly. They report to `TrustService`, which keeps a decaying score per player. When the score passes `KickScore` and at least two different checks agree (honeypots count as proof on their own), forensic replay double checks movement flags against the recorded path, then the player gets kicked. Bans are only ever done by a person from the dashboard.
+Checks never punish anyone directly. They report to Trust, which keeps a decaying score per player. A kick needs the score past `KickScore` **and** at least two different checks agreeing. Traps (honeypots, vault, bait) count as proof on their own, and movement proves itself by replaying the recorded path. Bans are only ever done by a person.
 
-## Checks
+## Features
 
-| Check | What it catches |
+Every one of these can be switched on/off live from Settings, no republish.
+
+| | |
 | --- | --- |
-| Movement | speed, teleport, fly, noclip. Snaps you back to the last good spot |
+| Movement | speed, teleport, fly, noclip, super jump, blink. Snaps you back to the last good spot |
 | Character | humanoid swap/delete, godmode, root resize, deleted limbs |
-| Remote | rate limits + argument validation for remotes made with `AntiCheat.Remote.new` |
-| Timing | remotes fired with inhumanly even gaps (macros) |
-| Statistical | per-player baselines for any stat you feed it, plus accuracy |
-| Honeypot | fake remotes / fake secret values, renamed every server |
-| Client | heartbeat from the client script, local speed/jump/gravity edits |
+| Net guard | spam, bad args and canary values on every Net remote |
+| Timing / Statistical | macros, and stats way off the player's own baseline |
 | Combat | `ValidateHit` range, cooldown and line of sight |
+| Client | heartbeat + local speed/jump/gravity edits |
+| Honeypots | fake admin remotes and fake secret values, renamed every server |
+| Trap vault | sealed invisible room far away, plus any part named `ACVault`. Only teleporters get in |
+| Bait NPC | invisible dummy next to suspects. Only aimbots/kill aura target it |
+| Bait coins | coins floating out of reach above the map, plus any part named `ACCoin` |
+| 3D replays | last 20s of every kick, watch it on the real map in the browser |
+| Mission Control | live radar of every server + cheat heatmap |
+| Threat level | per-server calm / watch / alert / under attack |
+| Spectator | `/spectate` or F8 in game, or the dashboard button (teleports you into their server) |
+| Case files | plain-English explanation of every kick |
+| Cheat tools | kicks grouped by fingerprint, one big group = one script going around |
+| Alts | new accounts that play like a banned player get flagged (never auto-punished) |
+| Global bans | ban reaches every live server in about a second |
+| Trust carries over | suspicion follows a player between servers |
+| Appeals | public appeal page, shown to staff next to the replay |
+| Learning loop | every ban/unban teaches it which checks are noisy |
+| What-if | drag the sliders, see who would've been kicked in the last 30 days |
+| Cheater Island | **off by default**. Sends cheaters to their own server instead of kicking. Published games only |
 
 ## Using it from game code
 
@@ -39,23 +80,42 @@ local AntiCheat = require(game.ServerScriptService.AntiCheat.API)
 -- before a legit teleport, knockback, dash...
 AntiCheat.Exempt(player, "Movement", 2)
 
-local attack = AntiCheat.Remote.new("Attack", { Args = { "Instance:Model", "Vector3?" }, Rate = 8 })
-attack:Connect(function(player, target, dir)
-	if not target then
-		-- swung at nothing, still counts toward accuracy stats
-		AntiCheat.Combat.RecordMiss(player)
-	elseif AntiCheat.Combat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
+local Attack = Net.Event({ name = "Attack", cooldown = 0.2 }):Expect("Instance")
+Attack:Listen(function(player, target)
+	if AntiCheat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
 		-- damage
 	end
 end)
+
+-- swung at nothing, still counts toward accuracy
+AntiCheat.RecordMiss(player)
+
+-- feed any stat, it learns what's normal for that player
+AntiCheat.RecordStat(player, "CoinsPerMinute", cpm)
+
+AntiCheat.OnKicked(function(player, reason) end)
 ```
 
-Morphs, character scaling or removing limbs on purpose? Call `AntiCheat.Exempt(player, "Character", 3)` first.
+Morphs, scaling or removing limbs on purpose? `AntiCheat.Exempt(player, "Character", 3)` first.
 
-Set WalkSpeed / JumpPower on the server. The movement check reads the server's values, so a sprint that only changes speed on the client will get flagged.
+Set WalkSpeed / JumpPower on the server. Movement follows the server's values, so a client-only sprint gets flagged.
 
-## Setup notes
+If your own NPC or hit detection loops over workspace, skip models where `AntiCheat.IsBait(model)` is true (they're also tagged `ACBait` / `ACInternal`).
 
-- The game key is **not** in this repo. In Studio it lives in `ServerScriptService.AntiCheat.ServerKey`. For live servers, add it as an experience secret named `anticheat_key` (Creator Hub → your experience → Secrets) and delete the module.
-- HttpService must be enabled.
-- Thresholds are tuned live from Settings in the dashboard, no republish needed.
+## Tests
+
+`roblox/tests/run.luau` plays 200 legit sessions (50 on terrible connections) and 50 cheat sessions through the real movement + scoring code. CI runs it on every push; one false kick fails the deploy. The badge above is the latest result.
+
+Real sessions can be added from the replay viewer: *As legit play* / *As cheat* downloads a test case, drop it in `roblox/tests/recorded/` and add it to `init.luau`.
+
+```
+luau roblox/tests/run.luau
+```
+
+## Setup checklist
+
+- GitHub → Settings → Pages → Source: **GitHub Actions**
+- First Discord login to the dashboard becomes the owner, everyone after is pending until approved
+- Settings → My Roblox account (needed for the spectate button)
+- Discord bot: set the Interactions Endpoint URL shown in Settings, then install the app to your server
+- Open Cloud key (Messaging Service → publish, for this experience) goes in Settings → Keys. It's write-only and never reaches the game or the site

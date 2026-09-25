@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, type Config, type DashUser } from '../lib/supabase'
-import { DEFAULTS, GROUPS } from '../lib/thresholds'
+import { DEFAULTS, FEATURES, FEATURE_DEFAULTS, GROUPS } from '../lib/thresholds'
 import { ago, errorText } from '../lib/format'
 import { Button, Panel } from '../components/ui'
 
@@ -10,10 +10,159 @@ export function Settings({ config, users, me, reload }: Props) {
   const isOwner = me.role === 'owner'
   return (
     <div className="space-y-5">
+      <Features config={config} reload={reload} />
       <Thresholds config={config} reload={reload} />
+      <MyRoblox me={me} reload={reload} />
       {isOwner && <Webhook />}
+      {isOwner && <Keys />}
+      <DiscordBot />
       <Team users={users} me={me} reload={reload} />
     </div>
+  )
+}
+
+function Features({ config, reload }: { config: Config | null; reload: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+  const current = { ...FEATURE_DEFAULTS, ...(config?.features ?? {}) }
+
+  async function toggle(key: string) {
+    setBusy(key)
+    setMsg('')
+    const next = { ...current, [key]: !current[key] }
+    // only send what differs from the default, the game falls back cleanly for the rest
+    const diff = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== FEATURE_DEFAULTS[k]))
+    const { error } = await supabase.rpc('admin_set_features', { p_features: diff })
+    setBusy(null)
+    if (error) setMsg(errorText(error))
+    else {
+      setMsg('Saved. Servers switch within 20s.')
+      reload()
+    }
+  }
+
+  return (
+    <Panel title="Features" right={<span className="text-xs text-muted">live, no republish</span>}>
+      <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
+        {FEATURES.map((f) => {
+          const on = current[f.key]
+          return (
+            <button
+              key={f.key}
+              onClick={() => toggle(f.key)}
+              disabled={busy !== null}
+              className={`flex items-start gap-3 rounded-lg border p-3 text-left transition disabled:opacity-60 ${
+                on ? 'border-accent/30 bg-accent/5' : 'border-line bg-panel-2'
+              }`}
+            >
+              <span className={`mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${on ? 'bg-accent' : 'bg-line'}`}>
+                <span className={`h-4 w-4 rounded-full bg-white transition ${on ? 'translate-x-4' : ''}`} />
+              </span>
+              <span>
+                <span className="block text-sm font-medium">
+                  {f.label}
+                  {f.key === 'CheaterIsland' && <span className="ml-2 text-[10px] uppercase text-warn">published games only</span>}
+                </span>
+                <span className="block text-xs text-muted">{f.hint}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      {msg && <p className="px-4 pb-3 text-sm text-muted">{msg}</p>}
+    </Panel>
+  )
+}
+
+function MyRoblox({ me, reload }: { me: DashUser; reload: () => void }) {
+  const [id, setId] = useState(me.roblox_id ? String(me.roblox_id) : '')
+  const [msg, setMsg] = useState('')
+  async function save() {
+    const n = id.trim() ? Number(id) : null
+    const { error } = await supabase.rpc('admin_set_my_roblox', { p_id: n })
+    setMsg(error ? errorText(error) : 'Saved.')
+    reload()
+  }
+  return (
+    <Panel title="Your Roblox account">
+      <form className="flex flex-wrap items-center gap-2 p-4" onSubmit={(e) => { e.preventDefault(); save() }}>
+        <input
+          value={id}
+          onChange={(e) => setId(e.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
+          maxLength={12}
+          placeholder="Roblox user id"
+          className="w-44 rounded-lg border border-line bg-panel-2 px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/60"
+        />
+        <Button tone="accent" type="submit">Save</Button>
+        <span className="text-xs text-muted">
+          Needed for "Spectate" on the dashboard: with the game open, it pulls you into the suspect's server, invisible. The id must also be in Config.Admins in the game.
+        </span>
+        {msg && <span className="w-full text-sm text-muted">{msg}</span>}
+      </form>
+    </Panel>
+  )
+}
+
+function Keys() {
+  const [status, setStatus] = useState<Record<string, boolean>>({})
+  const [value, setValue] = useState('')
+  const [msg, setMsg] = useState('')
+  const load = () => supabase.rpc('secrets_status').then(({ data }) => setStatus((data as Record<string, boolean>) ?? {}))
+  useEffect(() => {
+    load()
+  }, [])
+  async function save(v: string) {
+    const { error } = await supabase.rpc('admin_set_secret', { p_key: 'open_cloud_key', p_value: v.trim() })
+    setMsg(error ? errorText(error) : v ? 'Saved.' : 'Removed.')
+    setValue('')
+    load()
+  }
+  return (
+    <Panel title="Roblox Open Cloud key" right={<span className={`text-xs ${status.open_cloud_key ? 'text-good' : 'text-muted'}`}>{status.open_cloud_key ? 'connected' : 'not set'}</span>}>
+      <form className="flex flex-wrap items-center gap-2 p-4" onSubmit={(e) => { e.preventDefault(); save(value) }}>
+        <input
+          type="password"
+          autoComplete="off"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Paste a new key to replace the current one"
+          className="min-w-64 flex-1 rounded-lg border border-line bg-panel-2 px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/60"
+        />
+        <Button tone="accent" type="submit" disabled={!value.trim()}>Save</Button>
+        <div className="w-full text-xs text-muted">
+          Makes bans hit every server in about a second. Needs the Messaging Service "publish" permission for your experience. Write only, it can never be read back.
+        </div>
+        {msg && <div className="w-full text-sm text-muted">{msg}</div>}
+      </form>
+    </Panel>
+  )
+}
+
+function DiscordBot() {
+  const endpoint = 'https://kapvjoemzsdqiealluzl.supabase.co/functions/v1/discord'
+  const invite = 'https://discord.com/oauth2/authorize?client_id=1553113119298162788&scope=applications.commands'
+  return (
+    <Panel title="Discord bot">
+      <div className="space-y-2 p-4 text-sm">
+        <p className="text-muted">
+          <code className="text-text">/check</code> <code className="text-text">/ban</code> <code className="text-text">/unban</code>{' '}
+          <code className="text-text">/replay</code>, usable by anyone on the team list below.
+        </p>
+        <ol className="list-decimal space-y-1 pl-5 text-muted">
+          <li>
+            Discord Developer Portal → your app → General Information → Interactions Endpoint URL:
+            <code className="ml-1 break-all rounded bg-panel-2 px-1.5 py-0.5 text-xs text-text">{endpoint}</code>
+          </li>
+          <li>
+            Add it to your server:{' '}
+            <a href={invite} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+              install link ↗
+            </a>
+          </li>
+        </ol>
+      </div>
+    </Panel>
   )
 }
 

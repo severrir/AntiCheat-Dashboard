@@ -3,6 +3,7 @@ name: Deploy dashboard
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -24,12 +25,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # the real detection code against generated + recorded sessions. a false kick fails the deploy
+      - name: Anticheat tests
+        run: |
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          unzip -q luau.zip -d .luau
+          set -o pipefail
+          ./.luau/luau roblox/tests/run.luau | node scripts/badge.mjs
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

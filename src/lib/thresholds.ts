@@ -43,3 +43,28 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
 export const DEFAULTS: Record<string, number> = Object.fromEntries(
   GROUPS.flatMap((g) => g.fields.map((f) => [f.key, f.def])),
 )
+
+// every feature can be flipped live. same list and defaults as Config.Features in the game
+export const FEATURES: { key: string; label: string; hint: string; def: boolean }[] = [
+  { key: 'Movement', label: 'Movement check', hint: 'speed, teleport, fly, noclip, super jump, blink', def: true },
+  { key: 'Character', label: 'Character check', hint: 'godmode, humanoid swaps, hitbox resize', def: true },
+  { key: 'NetGuard', label: 'Net guard', hint: 'watches every Net remote for spam and bad args', def: true },
+  { key: 'Timing', label: 'Macro detection', hint: 'remotes fired at inhumanly even rhythm', def: true },
+  { key: 'Statistical', label: 'Player baselines', hint: 'accuracy and custom stats vs their own history', def: true },
+  { key: 'Combat', label: 'Hit validation', hint: 'range, cooldown, line of sight', def: true },
+  { key: 'Client', label: 'Client detector', hint: 'heartbeat + local speed/jump/gravity edits', def: true },
+  { key: 'Honeypot', label: 'Honeypot remotes', hint: 'fake admin remotes and fake secret keys', def: true },
+  { key: 'TrapVault', label: 'Trap vault', hint: 'sealed room only teleporters can reach', def: true },
+  { key: 'BaitNPC', label: 'Bait NPC', hint: 'invisible dummies next to suspects', def: true },
+  { key: 'BaitCoin', label: 'Bait coins', hint: 'coins floating out of reach above the map', def: true },
+  { key: 'Replays', label: '3D replays', hint: 'record the last 20s when someone is kicked', def: true },
+  { key: 'MapExport', label: 'Map export', hint: 'send the map so replays have a world', def: true },
+  { key: 'MissionControl', label: 'Mission Control', hint: 'live player positions every 5s', def: true },
+  { key: 'Spectator', label: 'Spectator mode', hint: 'invisible admin spectating in game', def: true },
+  { key: 'AltDetection', label: 'Alt detection', hint: 'flag new accounts that play like banned ones', def: true },
+  { key: 'GlobalBans', label: 'Instant global bans', hint: 'push bans to every server in about a second', def: true },
+  { key: 'CrossServerTrust', label: 'Trust follows players', hint: 'suspicion carries over between servers', def: true },
+  { key: 'CheaterIsland', label: 'Cheater Island', hint: 'send cheaters to their own server instead of kicking', def: false },
+]
+
+export const FEATURE_DEFAULTS: Record<string, boolean> = Object.fromEntries(FEATURES.map((f) => [f.key, f.def]))

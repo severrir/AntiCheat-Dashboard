@@ -18,11 +18,17 @@ type Props = {
   ban?: Ban
   kick: number
   close: () => void
+  openReplay: (id: number) => void
+  open: (id: number) => void
 }
 
-export function PlayerDrawer({ userId, player, ban, kick, close }: Props) {
+type ReplayRow = { id: number; kind: string; reason: string; created_at: string }
+
+export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, open }: Props) {
   const [flags, setFlags] = useState<Flag[]>([])
   const [actions, setActions] = useState<Action[]>([])
+  const [replays, setReplays] = useState<ReplayRow[]>([])
+  const [cmdMsg, setCmdMsg] = useState('')
   const [reason, setReason] = useState('')
   const [duration, setDuration] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -33,10 +39,12 @@ export function PlayerDrawer({ userId, player, ban, kick, close }: Props) {
     Promise.all([
       supabase.from('flags').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
       supabase.from('actions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
-    ]).then(([f, a]) => {
+      supabase.from('replays').select('id, kind, reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+    ]).then(([f, a, r]) => {
       if (!alive) return
       setFlags(f.data ?? [])
       setActions(a.data ?? [])
+      setReplays(r.data ?? [])
     })
     return () => {
       alive = false
@@ -50,6 +58,27 @@ export function PlayerDrawer({ userId, player, ban, kick, close }: Props) {
   }, [close])
 
   const banned = ban?.active && (!ban.expires_at || new Date(ban.expires_at).getTime() > Date.now())
+  const online = player ? isOnline(player.last_seen) : false
+
+  // these go into whichever live server the player is on, through the next pulse (~5s)
+  async function command(kind: 'replay' | 'spectate' | 'kick') {
+    setCmdMsg('')
+    const { error } = await supabase.rpc('admin_command', { p_kind: kind, p_target: userId })
+    if (error) setCmdMsg(errorText(error))
+    else
+      setCmdMsg(
+        kind === 'replay'
+          ? 'Capturing, it shows up below in a few seconds.'
+          : kind === 'spectate'
+            ? 'Sent. If you are in any server of the game, you get pulled in invisibly.'
+            : 'Kick sent.',
+      )
+    if (kind === 'replay') {
+      setTimeout(() => {
+        supabase.from('replays').select('id, kind, reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(20).then(({ data }) => setReplays(data ?? []))
+      }, 8000)
+    }
+  }
 
   async function doBan() {
     if (!reason.trim()) {
@@ -99,6 +128,23 @@ export function PlayerDrawer({ userId, player, ban, kick, close }: Props) {
         </header>
 
         <div className="space-y-6 p-5">
+          {player?.alt_of && (
+            <button onClick={() => open(player.alt_of!)} className="w-full rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-left text-sm text-warn">
+              Possible alt of <span className="font-mono">{player.alt_of}</span>: plays {Math.round((player.alt_score ?? 0) * 100)}% like a banned account
+              {player.account_age !== null && <span className="text-warn/70"> · account is {player.account_age} days old</span>}
+            </button>
+          )}
+          {player?.on_island && <div className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">Currently on Cheater Island</div>}
+
+          {online && (
+            <section className="flex flex-wrap items-center gap-2">
+              <Button tone="accent" onClick={() => command('spectate')}>👁 Spectate</Button>
+              <Button onClick={() => command('replay')}>⏺ Capture replay</Button>
+              <Button tone="danger" onClick={() => command('kick')}>Kick</Button>
+              {cmdMsg && <span className="w-full text-xs text-muted">{cmdMsg}</span>}
+            </section>
+          )}
+
           {player && (
             <div className="grid grid-cols-4 gap-3">
               {[
@@ -172,6 +218,26 @@ export function PlayerDrawer({ userId, player, ban, kick, close }: Props) {
             )}
             {error && <div className="mt-3 text-sm text-bad">{error}</div>}
           </section>
+
+          {replays.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">3D replays</h3>
+              <ul className="space-y-2">
+                {replays.map((r) => (
+                  <li key={r.id}>
+                    <button onClick={() => openReplay(r.id)} className="flex w-full items-center gap-3 rounded-lg border border-line bg-panel p-3 text-left hover:border-accent/40">
+                      <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/15 text-accent">▶</span>
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium">#{r.id} · {r.kind}</span>
+                        <span className="block truncate text-xs text-muted">{r.reason || 'no reason'}</span>
+                      </span>
+                      <span className="text-xs text-muted">{ago(r.created_at)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Flag history</h3>

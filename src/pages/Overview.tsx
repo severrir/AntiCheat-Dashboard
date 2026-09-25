@@ -34,6 +34,18 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
 
   return (
     <div className="space-y-5">
+      <a
+        href="https://github.com/severrir/anticheat-dashboard/actions"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel/80 px-4 py-3 text-sm hover:border-good/40"
+      >
+        <span className="rounded-md bg-good/15 px-2 py-0.5 font-mono text-xs text-good">tested</span>
+        <span className="text-muted">
+          Every update runs the real detection code against 200 legit sessions (50 on terrible connections) and 50 cheat sessions.
+        </span>
+        <img src={`${import.meta.env.BASE_URL}badge.svg`} alt="" className="ml-auto h-5" />
+      </a>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Online now" value={online.length} tone="text-good" />
         <Stat label="Flags · 24h" value={counts.flags24} tone="text-accent" />
