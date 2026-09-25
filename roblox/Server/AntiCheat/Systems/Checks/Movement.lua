@@ -71,6 +71,7 @@ function Movement.Step(profile, now)
 	local climbing = state == State.Climbing or state == State.Swimming
 
 	local s = profile.move
+	local fromX, fromY, fromZ = s.lx, s.ly, s.lz
 	local verdict, allowed = MovementModel.step(s, {
 		t = now,
 		x = pos.X, y = pos.Y, z = pos.Z,
@@ -97,6 +98,9 @@ function Movement.Step(profile, now)
 	end
 
 	if verdict then
+		if verdict.kind == "Teleport" and verdict.ctx.dist > 200 and Config.On("TrapVault") then
+			Vault.Aimed(profile, Vector3.new(fromX, fromY, fromZ), pos)
+		end
 		Trust.Flag(profile, "Movement", verdict.severity, {
 			kind = verdict.kind,
 			speed = verdict.ctx.speed,
