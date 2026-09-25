@@ -68,19 +68,24 @@ local function apply()
 	rebuildZones()
 end
 
-function Vault.Step(profile)
-	local root = profile.root
-	if not root or not root.Parent then
-		return
-	end
-	local pos = root.Position
+-- movement calls this with the raw position before it snaps anyone back,
+-- otherwise a teleport straight in gets undone before we ever look
+function Vault.Check(profile, pos)
 	for _, zone in zones do
 		local p = zone.cf:PointToObjectSpace(pos)
 		local h = zone.half
 		if math.abs(p.X) <= h.X and math.abs(p.Y) <= h.Y and math.abs(p.Z) <= h.Z then
 			Honeypot.Trip(profile, "TrapVault")
-			return
+			return true
 		end
+	end
+	return false
+end
+
+function Vault.Step(profile)
+	local root = profile.root
+	if root and root.Parent then
+		Vault.Check(profile, root.Position)
 	end
 end
 

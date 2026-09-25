@@ -14,6 +14,7 @@ local DOWN = Vector3.new(0, -1, 0)
 local Movement = { Name = "ACMovement", Feature = "Movement", Rate = "hot" }
 
 local Trust
+local Vault
 
 local env = {
 	-- solid thing between two points, checked from both sides (a real wall, not a grazed corner)
@@ -45,6 +46,9 @@ function Movement.Step(profile, now)
 	end
 	local root, hum = profile.root, profile.humanoid
 	local pos = root.Position
+	if Config.On("TrapVault") and Vault.Check(profile, pos) then
+		return
+	end
 
 	-- vehicles, exemptions: just follow along
 	if not profile.move or hum.SeatPart or profile:IsExempt("Movement", now) then
@@ -108,6 +112,7 @@ end
 
 function Movement:Start()
 	Trust = Framework.Get("ACTrust")
+	Vault = Framework.Get("ACVault")
 	Framework.Get("ACScheduler").Add(Movement)
 end
 
