@@ -1,4 +1,4 @@
-import { fromDatabase, json, secret } from "../_shared/util.ts";
+import { db, fromDatabase, gameSecret, json } from "../_shared/util.ts";
 
 // the database pings this whenever a ban changes. it publishes straight into every live
 // roblox server through open cloud messaging, so bans land in about a second
@@ -9,17 +9,23 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "method" });
   if (!(await fromDatabase(req))) return json(401, { error: "auth" });
 
-  let body: { id?: unknown; active?: unknown; reason?: unknown };
+  let body: { game?: unknown; id?: unknown; active?: unknown; reason?: unknown };
   try {
     body = await req.json();
   } catch {
     return json(400, { error: "json" });
   }
-  if (typeof body.id !== "string" || !ID_RE.test(body.id) || typeof body.active !== "boolean") {
+  const game = typeof body.game === "number" && Number.isInteger(body.game) ? body.game : null;
+  if (!game || typeof body.id !== "string" || !ID_RE.test(body.id) || typeof body.active !== "boolean") {
     return json(400, { error: "payload" });
   }
 
-  const [key, universe] = await Promise.all([secret("open_cloud_key"), secret("universe_id")]);
+  // each game has its own universe and its own open cloud key
+  const [key, { data: g }] = await Promise.all([
+    gameSecret(game, "open_cloud_key"),
+    db.from("games").select("universe_id").eq("id", game).maybeSingle(),
+  ]);
+  const universe = g?.universe_id ? String(g.universe_id) : null;
   // no key means relay-only mode, servers still pick bans up on their next sync
   if (!key || !universe) return json(200, { sent: false, reason: "no open cloud key" });
 

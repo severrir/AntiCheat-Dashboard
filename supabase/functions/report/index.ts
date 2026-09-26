@@ -1,5 +1,5 @@
 import { barsPng } from "../_shared/draw.ts";
-import { db, DASHBOARD, fromDatabase, json, secret } from "../_shared/util.ts";
+import { db, DASHBOARD, fromDatabase, gameSecret, json } from "../_shared/util.ts";
 
 // daily report to discord, fired by pg_cron at 10:00 tbilisi
 
@@ -8,19 +8,14 @@ const COLORS: Record<string, string> = {
   Timing: "#fb923c", Honeypot: "#f43f5e", Client: "#60a5fa", Combat: "#f472b6", Custom: "#94a3b8",
 };
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") return json(405, { error: "method" });
-  if (!(await fromDatabase(req))) return json(401, { error: "auth" });
-
-  const webhook = await secret("discord_webhook");
-  if (!webhook) return json(200, { sent: false, reason: "no webhook" });
-
+async function reportFor(game: { id: number; name: string }, webhook: string, multi: boolean) {
   const since = new Date(Date.now() - 86_400_000).toISOString();
-  const [flags, actions, appeals, players] = await Promise.all([
-    db.from("flags").select("check_name, hits, created_at, user_id").gte("created_at", since).limit(20000),
-    db.from("actions").select("action, created_at").gte("created_at", since).limit(5000),
-    db.from("appeals").select("status").gte("decided_at", since).limit(1000),
-    db.from("players").select("user_id", { count: "exact", head: true }).gte("last_seen", since),
+  const [flags, actions, appeals, players, reports] = await Promise.all([
+    db.from("flags").select("check_name, hits, created_at, user_id").eq("game_id", game.id).gte("created_at", since).limit(20000),
+    db.from("actions").select("action, created_at").eq("game_id", game.id).gte("created_at", since).limit(5000),
+    db.from("appeals").select("status").eq("game_id", game.id).gte("decided_at", since).limit(1000),
+    db.from("players").select("user_id", { count: "exact", head: true }).eq("game_id", game.id).gte("last_seen", since),
+    db.from("reports").select("id", { count: "exact", head: true }).eq("game_id", game.id).gte("created_at", since),
   ]);
 
   const byCheck = new Map<string, number>();
@@ -34,6 +29,7 @@ Deno.serve(async (req) => {
   }
   const count = (a: string) => (actions.data ?? []).filter((x) => x.action === a).length;
   const kicks = count("kick"), bans = count("ban"), unbans = count("unban");
+  const shadowed = count("shadow"), undone = count("revert");
   const approved = (appeals.data ?? []).filter((a) => a.status === "approved").length;
   const busiest = byHour.indexOf(Math.max(...byHour));
   const top = [...byCheck.entries()].sort((a, b) => b[1] - a[1]);
@@ -45,7 +41,9 @@ Deno.serve(async (req) => {
 
   const lines = [
     `**${kicks}** kicked, **${bans}** banned, **${unbans}** unbanned`,
+    shadowed || undone ? `**${shadowed}** shadowed, **${undone}** had their gains undone` : "",
     `**${flagged.size}** of ${players.count ?? 0} players tripped at least one check`,
+    reports.count ? `**${reports.count}** player reports` : "",
     top[0] ? `Most common: **${top[0][0]}** (${top[0][1]})` : "Nothing flagged at all",
     top[0] ? `Busiest hour: **${String(busiest).padStart(2, "0")}:00** Tbilisi time` : "",
     `Appeals approved (wrong bans): **${approved}**`,
@@ -56,7 +54,7 @@ Deno.serve(async (req) => {
     username: "AntiCheat",
     allowed_mentions: { parse: [] },
     embeds: [{
-      title: "Daily anticheat report",
+      title: multi ? `Daily anticheat report: ${game.name}` : "Daily anticheat report",
       url: DASHBOARD,
       description: lines.join("\n"),
       color: 0x22d3ee,
@@ -67,5 +65,19 @@ Deno.serve(async (req) => {
   form.append("files[0]", new Blob([png], { type: "image/png" }), "report.png");
 
   const res = await fetch(webhook, { method: "POST", body: form });
-  return json(200, { sent: res.ok });
+  return res.ok;
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== "POST") return json(405, { error: "method" });
+  if (!(await fromDatabase(req))) return json(401, { error: "auth" });
+
+  // one report per game, each to that game's own webhook
+  const { data: games } = await db.from("games").select("id, name").order("id");
+  const sent: Record<string, boolean> = {};
+  for (const g of games ?? []) {
+    const webhook = await gameSecret(g.id, "discord_webhook");
+    if (webhook) sent[g.name] = await reportFor(g, webhook, (games ?? []).length > 1);
+  }
+  return json(200, { sent });
 });

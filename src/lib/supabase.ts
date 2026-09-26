@@ -6,7 +6,16 @@ export const supabase = createClient(SUPABASE_URL, 'sb_publishable_2LUd8xlwuO7uv
   auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true },
 })
 
+export type Game = {
+  id: number
+  name: string
+  universe_id: number | null
+  discord_guild: string | null
+  created_at: string
+}
+
 export type Player = {
+  game_id: number
   user_id: number
   username: string
   trust_score: number
@@ -21,10 +30,18 @@ export type Player = {
   alt_of: number | null
   alt_score: number | null
   on_island: boolean
+  shadowed: boolean
+  shadow_by: string | null
+  shadowed_at: string | null
+  reports_against: number
+  reports_made: number
+  reports_confirmed: number
+  reports_dismissed: number
 }
 
 export type Flag = {
   id: number
+  game_id: number
   user_id: number
   server_id: string
   check_name: string
@@ -42,8 +59,9 @@ export type Flag = {
 
 export type Action = {
   id: number
+  game_id: number
   user_id: number
-  action: 'kick' | 'ban' | 'unban'
+  action: 'kick' | 'ban' | 'unban' | 'shadow' | 'unshadow' | 'revert'
   reason: string
   actor: string
   replay_id: number | null
@@ -52,6 +70,7 @@ export type Action = {
 }
 
 export type Ban = {
+  game_id: number
   user_id: number
   reason: string
   active: boolean
@@ -66,12 +85,13 @@ export type DashUser = {
   discord_id: string | null
   username: string
   avatar_url: string | null
-  role: 'owner' | 'admin' | 'pending'
+  role: 'owner' | 'admin' | 'staff' | 'pending'
   roblox_id: number | null
   created_at: string
 }
 
 export type Config = {
+  game_id: number
   thresholds: Record<string, number>
   features: Record<string, boolean>
   version: number
@@ -81,6 +101,7 @@ export type Config = {
 
 export type Server = {
   server_id: string
+  game_id: number
   place_id: number | null
   players: number
   threat: number
@@ -90,6 +111,7 @@ export type Server = {
 
 export type Replay = {
   id: number
+  game_id: number
   user_id: number
   server_id: string | null
   place_id: number | null
@@ -104,6 +126,7 @@ export type Replay = {
 
 export type Appeal = {
   id: number
+  game_id: number
   user_id: number
   username: string
   message: string
@@ -114,6 +137,43 @@ export type Appeal = {
   decided_at: string | null
   created_at: string
 }
+
+export type Report = {
+  id: number
+  game_id: number
+  target_id: number
+  reporter_id: number
+  reason: string
+  note: string
+  weight: number
+  server_id: string | null
+  replay_id: number | null
+  target_score: number | null
+  status: 'open' | 'confirmed' | 'dismissed'
+  decided_by: string | null
+  decided_at: string | null
+  created_at: string
+}
+
+export type Revert = {
+  id: number
+  game_id: number
+  user_id: number
+  since: string
+  summary: {
+    currency?: Record<string, number>
+    items?: Record<string, number>
+    kills?: number
+    victims?: Record<string, { kills?: number; currency?: Record<string, number>; items?: Record<string, number> }>
+  }
+  status: 'pending' | 'sent' | 'done' | 'failed' | 'empty'
+  result: string | null
+  created_by: string
+  created_at: string
+  done_at: string | null
+}
+
+export type GameStaff = { game_id: number; user_id: string }
 
 // [x, y, z, sx, sy, sz, rx, ry, rz, color, shape]
 export type MapPart = number[]

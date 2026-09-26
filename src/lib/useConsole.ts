@@ -1,78 +1,100 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, type Appeal, type Ban, type Config, type DashUser, type Flag, type Player, type Server } from './supabase'
+import {
+  supabase,
+  type Appeal,
+  type Ban,
+  type Config,
+  type DashUser,
+  type Flag,
+  type GameStaff,
+  type Player,
+  type Report,
+  type Server,
+} from './supabase'
 
 const FEED_LIMIT = 300
 
 export type Counts = { flags24: number; kicks24: number }
 
-// loads everything once and keeps it live through realtime
-export function useConsole(enabled: boolean) {
+// loads everything for one game and keeps it live through realtime
+export function useConsole(enabled: boolean, game: number) {
   const [players, setPlayers] = useState<Player[]>([])
   const [flags, setFlags] = useState<Flag[]>([])
   const [bans, setBans] = useState<Ban[]>([])
   const [config, setConfig] = useState<Config | null>(null)
   const [users, setUsers] = useState<DashUser[]>([])
+  const [staff, setStaff] = useState<GameStaff[]>([])
   const [servers, setServers] = useState<Server[]>([])
   const [appeals, setAppeals] = useState<Appeal[]>([])
+  const [reports, setReports] = useState<Report[]>([])
   const [counts, setCounts] = useState<Counts>({ flags24: 0, kicks24: 0 })
   const [loading, setLoading] = useState(true)
   const [live, setLive] = useState(false)
   const fresh = useRef(new Set<number>())
 
   const loadCounts = useCallback(async () => {
+    if (!game) return
     const since = new Date(Date.now() - 86_400_000).toISOString()
     const [f, k] = await Promise.all([
-      supabase.from('flags').select('id', { count: 'exact', head: true }).gte('created_at', since),
-      supabase.from('actions').select('id', { count: 'exact', head: true }).eq('action', 'kick').gte('created_at', since),
+      supabase.from('flags').select('id', { count: 'exact', head: true }).eq('game_id', game).gte('created_at', since),
+      supabase.from('actions').select('id', { count: 'exact', head: true }).eq('game_id', game).eq('action', 'kick').gte('created_at', since),
     ])
     setCounts({ flags24: f.count ?? 0, kicks24: k.count ?? 0 })
-  }, [])
+  }, [game])
 
   const reload = useCallback(async () => {
-    const [p, f, b, c, u, s, a] = await Promise.all([
-      supabase.from('players').select('*').order('last_seen', { ascending: false }).limit(500),
-      supabase.from('flags').select('*').order('created_at', { ascending: false }).limit(FEED_LIMIT),
-      supabase.from('bans').select('*').order('updated_at', { ascending: false }).limit(500),
-      supabase.from('config').select('thresholds,features,version,updated_at,updated_by').eq('id', 1).maybeSingle(),
+    if (!game) return
+    const [p, f, b, c, u, st, s, a, r] = await Promise.all([
+      supabase.from('players').select('*').eq('game_id', game).order('last_seen', { ascending: false }).limit(500),
+      supabase.from('flags').select('*').eq('game_id', game).order('created_at', { ascending: false }).limit(FEED_LIMIT),
+      supabase.from('bans').select('*').eq('game_id', game).order('updated_at', { ascending: false }).limit(500),
+      supabase.from('config').select('game_id,thresholds,features,version,updated_at,updated_by').eq('game_id', game).maybeSingle(),
       supabase.from('dashboard_users').select('*').order('created_at'),
-      supabase.from('servers').select('*').order('last_seen', { ascending: false }),
-      supabase.from('appeals').select('*').order('created_at', { ascending: false }).limit(200),
+      supabase.from('game_staff').select('game_id,user_id'),
+      supabase.from('servers').select('*').eq('game_id', game).order('last_seen', { ascending: false }),
+      supabase.from('appeals').select('*').eq('game_id', game).order('created_at', { ascending: false }).limit(200),
+      supabase.from('reports').select('*').eq('game_id', game).order('created_at', { ascending: false }).limit(400),
     ])
-    if (p.data) setPlayers(p.data)
-    if (f.data) setFlags(f.data)
-    if (b.data) setBans(b.data)
-    if (c.data) setConfig(c.data)
+    setPlayers(p.data ?? [])
+    setFlags(f.data ?? [])
+    setBans(b.data ?? [])
+    setConfig(c.data ?? null)
     if (u.data) setUsers(u.data)
-    if (s.data) setServers(s.data)
-    if (a.data) setAppeals(a.data)
+    if (st.data) setStaff(st.data)
+    setServers(s.data ?? [])
+    setAppeals(a.data ?? [])
+    setReports(r.data ?? [])
     await loadCounts()
     setLoading(false)
-  }, [loadCounts])
+  }, [game, loadCounts])
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !game) return
+    setLoading(true)
+    fresh.current.clear()
     reload()
 
     const upsert = <T,>(key: keyof T) => (setter: React.Dispatch<React.SetStateAction<T[]>>) => (row: T) =>
       setter((prev) => [row, ...prev.filter((x) => x[key] !== row[key])])
+    const filter = `game_id=eq.${game}`
 
     const channel = supabase
-      .channel('console')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flags' }, (msg) => {
+      .channel(`console:${game}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flags', filter }, (msg) => {
         const flag = msg.new as Flag
         fresh.current.add(flag.id)
         setFlags((prev) => [flag, ...prev].slice(0, FEED_LIMIT))
         setCounts((c) => ({ ...c, flags24: c.flags24 + 1 }))
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (msg) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter }, (msg) => {
         const row = msg.new as Player
         if (row?.user_id) upsert<Player>('user_id')(setPlayers)(row)
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bans' }, (msg) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bans', filter }, (msg) => {
         const row = msg.new as Ban
         if (row?.user_id) upsert<Ban>('user_id')(setBans)(row)
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'servers' }, (msg) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'servers', filter }, (msg) => {
         if (msg.eventType === 'DELETE') {
           const old = msg.old as Partial<Server>
           setServers((prev) => prev.filter((s) => s.server_id !== old.server_id))
@@ -81,9 +103,13 @@ export function useConsole(enabled: boolean) {
         const row = msg.new as Server
         if (row?.server_id) upsert<Server>('server_id')(setServers)(row)
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appeals' }, (msg) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appeals', filter }, (msg) => {
         const row = msg.new as Appeal
         if (row?.id) upsert<Appeal>('id')(setAppeals)(row)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports', filter }, (msg) => {
+        const row = msg.new as Report
+        if (row?.id) upsert<Report>('id')(setReports)(row)
       })
       .subscribe((status) => setLive(status === 'SUBSCRIBED'))
 
@@ -93,9 +119,12 @@ export function useConsole(enabled: boolean) {
       clearInterval(timer)
       supabase.removeChannel(channel)
     }
-  }, [enabled, reload, loadCounts])
+  }, [enabled, game, reload, loadCounts])
 
-  return { players, flags, bans, config, users, servers, appeals, counts, loading, live, reload, fresh: fresh.current }
+  return {
+    players, flags, bans, config, users, staff, servers, appeals, reports, counts, loading, live, reload,
+    fresh: fresh.current,
+  }
 }
 
 export type ConsoleData = ReturnType<typeof useConsole>

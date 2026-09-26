@@ -23,6 +23,10 @@ function PlayerProfile.new(player)
 		immune = Config.Admins[player.UserId] == true and not (RunService:IsStudio() and Config.CheckAdminsInStudio),
 		joinedAt = now,
 		kicked = false,
+		-- "auto" when the anticheat put them there, "staff" when a human did
+		shadow = nil,
+		shadowCleared = false,
+		reportWeight = 0,
 
 		score = 0,
 		scoreAt = now,

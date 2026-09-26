@@ -41,6 +41,9 @@ Config.Features = {
 	AltDetection = true,
 	GlobalBans = true,
 	CrossServerTrust = true,
+	ShadowMode = true,
+	Reports = true,
+	RevertGains = true,
 }
 
 -- tuned live from the dashboard too
@@ -58,6 +61,9 @@ Config.Thresholds = {
 	HeartbeatTimeout = 25,
 	TimingMinCV = 0.035,
 	AccuracyCap = 0.92,
+
+	-- from this score on a suspect is shadowed: still playing, but harmless, until the kick or a human decides
+	ShadowScore = 60,
 
 	WeightMovement = 1,
 	WeightCharacter = 1,
@@ -87,6 +93,14 @@ Config.Vault = {
 	Position = Vector3.new(6000, 400, -6000),
 	Size = Vector3.new(40, 30, 40),
 }
+
+-- the report button players see. turn it off if your game has its own report ui and calls AntiCheat.Report
+Config.ReportButton = true
+Config.ReportReasons = { "Flying", "Speed", "Teleporting", "Aimbot", "Kill aura", "Exploiting", "Other" }
+
+-- record rises in leaderstats automatically, so banning someone can undo them.
+-- turn it off if your game calls AntiCheat.Grant itself, or gains get counted twice
+Config.AutoLeaderstats = true
 
 -- carried over trust fades by half every this many hours away
 Config.CarryHalfLifeHours = 6

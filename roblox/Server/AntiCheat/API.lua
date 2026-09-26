@@ -19,6 +19,20 @@
 	AntiCheat.OnFlagged(function(player, check, amount, score, ctx) end)
 	AntiCheat.OnKicked(function(player, reason, score) end)
 
+	-- shadow mode: suspects stay in, hits stop landing and earnings are held
+	AntiCheat.IsShadowed(player)
+	AntiCheat.Shadow(player, true)                      -- or false to lift it
+
+	-- what players gain, so a ban can undo it. ask before giving:
+	coins += AntiCheat.Grant(player, "Coins", 100, "quest")  -- 0 while shadowed
+	if AntiCheat.GrantItem(player, "Golden Sword", "shop") then giveSword() end
+	AntiCheat.RecordKill(killer, victim)
+	AntiCheat.Transfer(fromPlayer, toPlayer, "Coins", 250)      -- trades, steals. item: amount = nil
+	AntiCheat.OnRevert(function(userId, summary) return takeBack(userId, summary) end) -- your DataStore code
+
+	-- player reports, if you'd rather use your own report ui (set Config.ReportButton = false)
+	local ok, message = AntiCheat.Report(reporter, targetPlayer, "Flying", "optional note")
+
 	inside your own Framework services you can also just Framework.Get("ACCombatService") etc.
 ]]
 
@@ -70,6 +84,46 @@ end
 
 function API.OnKicked(fn)
 	return service("ACEnforcementService").Kicked:Connect(fn)
+end
+
+function API.IsShadowed(player)
+	return service("ACShadowService"):IsShadowed(player)
+end
+
+function API.Shadow(player, on)
+	local profile = service("ACPlayerService"):Get(player)
+	if not profile then
+		return
+	end
+	if on == false then
+		service("ACShadowService"):Clear(profile)
+	else
+		service("ACShadowService"):Set(profile, "staff", "from game code")
+	end
+end
+
+function API.Grant(player, key, amount, source)
+	return service("ACLedgerService"):Grant(player, key, amount, source)
+end
+
+function API.GrantItem(player, item, source)
+	return service("ACLedgerService"):GrantItem(player, item, source)
+end
+
+function API.RecordKill(killer, victim)
+	service("ACLedgerService"):RecordKill(killer, victim)
+end
+
+function API.Transfer(from, to, what, amount)
+	service("ACLedgerService"):Transfer(from, to, what, amount)
+end
+
+function API.OnRevert(fn)
+	service("ACRevertService"):OnRevert(fn)
+end
+
+function API.Report(reporter, target, reason, note)
+	return service("ACReportService"):Report(reporter, target, reason, note)
 end
 
 -- true for the invisible bait dummies, skip them in your own npc / targeting code

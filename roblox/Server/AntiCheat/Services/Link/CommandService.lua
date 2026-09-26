@@ -16,6 +16,8 @@ function CommandService:Init()
 		replay = self._replay,
 		kick = self._kick,
 		spectate = self._spectate,
+		shadow = self._shadowOn,
+		unshadow = self._shadowOff,
 	}
 end
 
@@ -41,6 +43,25 @@ function CommandService:_kick(_cmd, target)
 	end
 	player:Kick(Config.KickMessage)
 	return true, "kicked"
+end
+
+-- the backend already knows, so these don't report back
+function CommandService:_shadowOn(_cmd, target)
+	local profile = target and self._players:GetById(target)
+	if not profile then
+		return false, "player left"
+	end
+	self._shadow:Set(profile, "staff", "from dashboard", true)
+	return true, "shadowed"
+end
+
+function CommandService:_shadowOff(_cmd, target)
+	local profile = target and self._players:GetById(target)
+	if not profile then
+		return false, "player left"
+	end
+	self._shadow:Clear(profile, true)
+	return true, "shadow lifted"
 end
 
 function CommandService:_spectate(cmd, target)
@@ -91,6 +112,7 @@ function CommandService:Start()
 	self._players = Framework.Get("ACPlayerService")
 	self._recorder = Framework.Get("ACRecorderService")
 	self._spectator = Framework.Get("ACSpectatorService")
+	self._shadow = Framework.Get("ACShadowService")
 end
 
 return CommandService

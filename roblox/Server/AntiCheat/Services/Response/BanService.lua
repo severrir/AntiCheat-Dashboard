@@ -4,11 +4,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Config)
+local Signal = require(AC.Classes.Signal)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- bans come from the dashboard / discord bot. this keeps them enforced in game:
 -- join check, kicking people already inside, and roblox's own ban api so alts get caught too
-local BanService = { Name = "ACBanService" }
+local BanService = {
+	Name = "ACBanService",
+	-- (player, response) for everyone who got in. shadow mode and report thanks hang off this
+	JoinChecked = Signal.new(),
+}
 
 local function message(reason)
 	local text = Config.BanMessage
@@ -90,7 +95,8 @@ end
 
 function BanService:_onJoin(player)
 	local userId = player.UserId
-	if Config.Admins[userId] then
+	-- same rule as PlayerProfile.immune: admins are left alone, except in studio
+	if Config.Admins[userId] and not (RunService:IsStudio() and Config.CheckAdminsInStudio) then
 		return
 	end
 	if self._cache[userId] then
@@ -117,6 +123,7 @@ function BanService:_onJoin(player)
 			profile:Carry(carried)
 		end
 	end
+	self.JoinChecked:Fire(player, res)
 end
 
 function BanService:Start()

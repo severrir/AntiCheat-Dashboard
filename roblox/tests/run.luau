@@ -5,6 +5,7 @@
 local MovementModel = require("../Server/AntiCheat/Classes/MovementModel")
 local Scoring = require("../Server/AntiCheat/Util/Scoring")
 local RingBuffer = require("../Server/AntiCheat/Classes/RingBuffer")
+local SyncBatch = require("../Server/AntiCheat/Classes/SyncBatch")
 local Sessions = require("./Sessions")
 local recorded = require("./recorded")
 
@@ -135,6 +136,38 @@ if #wrong > 0 then
 end
 if #missed > 0 then
 	print("missed: " .. table.concat(missed, ", "))
+end
+
+-- the ledger is what an undo works from, so a failed sync must not lose or double anything
+do
+	local b = SyncBatch.new(10)
+	for _ = 1, 50 do
+		b:AddLedger(1, "currency", "Coins", 10, nil, "farm", false)
+	end
+	b:AddLedger(1, "currency", "Coins", 5, 2, "transfer", false)
+	b:AddLedger(1, "kill", "kill", 1, 2, "", false)
+	b:AddReport({ target = "2", reporter = "3", reason = "Flying" })
+	local drained = b:Drain()
+	assert(#drained.ledger == 3, "ledger rows should merge per player, kind, key, victim and source")
+	local coins = 0
+	for _, e in drained.ledger do
+		if e.kind == "currency" and e.victim == nil then
+			coins = e.amount
+		end
+	end
+	assert(coins == 500, "farmed coins should add up, got " .. coins)
+	b:AddLedger(1, "currency", "Coins", 10, nil, "farm", false)
+	b:Restore(drained)
+	local again = b:Drain()
+	local total = 0
+	for _, e in again.ledger do
+		if e.kind == "currency" and e.victim == nil then
+			total = e.amount
+		end
+	end
+	assert(total == 510, "restored ledger should merge with new gains, got " .. total)
+	assert(#again.reports == 1, "a failed sync must keep its reports")
+	print("ledger batching: ok")
 end
 
 local color = if falseKicks == 0 and caught == #cheats then "brightgreen" elseif falseKicks == 0 then "yellow" else "red"

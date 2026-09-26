@@ -49,7 +49,8 @@ local function movementConfirmed(profile, now)
 end
 
 function EnforcementService:Evaluate(profile, now)
-	if profile.kicked then
+	-- staff shadowed them to watch, a kick would end that. the flags still pile up
+	if profile.kicked or (profile.shadow == "staff" and Config.On("ShadowMode")) then
 		return
 	end
 	local score = profile:Score(now)

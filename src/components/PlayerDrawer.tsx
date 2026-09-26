@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase, type Action, type Ban, type Flag, type Player } from '../lib/supabase'
+import { supabase, type Action, type Ban, type Flag, type Player, type Report, type Revert } from '../lib/supabase'
 import { ago, errorText, isOnline, robloxProfile, scoreTone } from '../lib/format'
+import { useGame } from '../lib/game'
 import { Button, CheckTag, Dot, Empty, ScoreBar } from './ui'
 import { Context } from './Context'
 
@@ -23,11 +24,50 @@ type Props = {
 }
 
 type ReplayRow = { id: number; kind: string; reason: string; created_at: string }
+type LedgerRow = { kind: string; key: string; amount: number; victim: number | null; withheld: boolean; created_at: string }
+
+const UNDO_WINDOWS = [
+  { label: 'since they started cheating', hours: null },
+  { label: 'last hour', hours: 1 },
+  { label: 'last 24 hours', hours: 24 },
+  { label: 'last 7 days', hours: 168 },
+]
+
+// what they gained in the last week, added up per thing
+function gains(rows: LedgerRow[]) {
+  const out = new Map<string, { label: string; amount: number; held: number }>()
+  for (const r of rows) {
+    const key = r.kind === 'kill' ? 'kills' : `${r.kind}:${r.key}`
+    const e = out.get(key) ?? { label: r.kind === 'kill' ? 'Kills' : r.key, amount: 0, held: 0 }
+    if (r.withheld) e.held += r.amount
+    else e.amount += r.amount
+    out.set(key, e)
+  }
+  return [...out.values()].sort((a, b) => b.amount + b.held - (a.amount + a.held))
+}
+
+function summaryText(s: Revert['summary']) {
+  const parts = [
+    ...Object.entries(s.currency ?? {}).map(([k, v]) => `${Math.round(v)} ${k}`),
+    ...Object.entries(s.items ?? {}).map(([k, v]) => (v > 1 ? `${v}× ${k}` : k)),
+  ]
+  if (s.kills) parts.push(`${s.kills} kills`)
+  const victims = Object.keys(s.victims ?? {}).length
+  if (victims) parts.push(`${victims} ${victims === 1 ? 'victim' : 'victims'} to pay back`)
+  return parts.length ? parts.join(', ') : 'nothing'
+}
 
 export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, open }: Props) {
+  const { game } = useGame()
   const [flags, setFlags] = useState<Flag[]>([])
   const [actions, setActions] = useState<Action[]>([])
   const [replays, setReplays] = useState<ReplayRow[]>([])
+  const [reports, setReports] = useState<Report[]>([])
+  const [reverts, setReverts] = useState<Revert[]>([])
+  const [ledger, setLedger] = useState<LedgerRow[]>([])
+  const [undoWindow, setUndoWindow] = useState(0)
+  const [actMsg, setActMsg] = useState('')
+  const [tick, setTick] = useState(0)
   const [cmdMsg, setCmdMsg] = useState('')
   const [reason, setReason] = useState('')
   const [duration, setDuration] = useState(0)
@@ -36,20 +76,27 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
 
   useEffect(() => {
     let alive = true
+    const week = new Date(Date.now() - 7 * 86_400_000).toISOString()
     Promise.all([
-      supabase.from('flags').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
-      supabase.from('actions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
-      supabase.from('replays').select('id, kind, reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
-    ]).then(([f, a, r]) => {
+      supabase.from('flags').select('*').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
+      supabase.from('actions').select('*').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+      supabase.from('replays').select('id, kind, reason, created_at').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+      supabase.from('reports').select('*').eq('game_id', game).eq('target_id', userId).order('created_at', { ascending: false }).limit(30),
+      supabase.from('reverts').select('*').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(10),
+      supabase.from('ledger').select('kind, key, amount, victim, withheld, created_at').eq('game_id', game).eq('user_id', userId).gte('created_at', week).limit(2000),
+    ]).then(([f, a, r, rp, rv, l]) => {
       if (!alive) return
       setFlags(f.data ?? [])
       setActions(a.data ?? [])
       setReplays(r.data ?? [])
+      setReports(rp.data ?? [])
+      setReverts(rv.data ?? [])
+      setLedger(l.data ?? [])
     })
     return () => {
       alive = false
     }
-  }, [userId, ban?.updated_at])
+  }, [game, userId, ban?.updated_at, player?.shadowed, tick])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
@@ -63,7 +110,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
   // these go into whichever live server the player is on, through the next pulse (~5s)
   async function command(kind: 'replay' | 'spectate' | 'kick') {
     setCmdMsg('')
-    const { error } = await supabase.rpc('admin_command', { p_kind: kind, p_target: userId })
+    const { error } = await supabase.rpc('admin_command', { p_game: game, p_kind: kind, p_target: userId })
     if (error) setCmdMsg(errorText(error))
     else
       setCmdMsg(
@@ -75,7 +122,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
       )
     if (kind === 'replay') {
       setTimeout(() => {
-        supabase.from('replays').select('id, kind, reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(20).then(({ data }) => setReplays(data ?? []))
+        supabase.from('replays').select('id, kind, reason, created_at').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(20).then(({ data }) => setReplays(data ?? []))
       }, 8000)
     }
   }
@@ -88,6 +135,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
     setBusy(true)
     setError('')
     const { error } = await supabase.rpc('admin_ban', {
+      p_game: game,
       p_user_id: userId,
       p_reason: reason.trim(),
       p_hours: DURATIONS[duration].hours,
@@ -100,10 +148,21 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
   async function doUnban() {
     setBusy(true)
     setError('')
-    const { error } = await supabase.rpc('admin_unban', { p_user_id: userId })
+    const { error } = await supabase.rpc('admin_unban', { p_game: game, p_user_id: userId })
     setBusy(false)
     if (error) setError(errorText(error))
   }
+
+  async function act(call: () => PromiseLike<{ error: unknown }>, done: string) {
+    setActMsg('')
+    const { error } = await call()
+    setActMsg(error ? errorText(error) : done)
+    setTick((t) => t + 1)
+  }
+
+  const shadowed = player?.shadowed ?? false
+  const gained = gains(ledger)
+  const openReports = reports.filter((r) => r.status === 'open')
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -116,6 +175,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
                 {player && <Dot on={isOnline(player.last_seen)} />}
                 <h2 className="truncate text-lg font-semibold">{player?.username || 'Unknown player'}</h2>
                 {banned && <span className="rounded bg-bad/15 px-1.5 text-[10px] font-semibold uppercase text-bad">banned</span>}
+                {shadowed && <span className="rounded bg-veil/15 px-1.5 text-[10px] font-semibold uppercase text-veil">shadowed</span>}
               </div>
               <a href={robloxProfile(userId)} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-accent hover:underline">
                 {userId} ↗
@@ -135,6 +195,32 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
             </button>
           )}
           {player?.on_island && <div className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">Currently on Cheater Island</div>}
+
+          {!banned && (
+            <section className={`rounded-xl border p-4 ${shadowed ? 'border-veil/40 bg-veil/5' : 'border-line bg-panel'}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 text-sm">
+                  <div className="font-medium">{shadowed ? 'In shadow mode' : 'Shadow mode'}</div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    {shadowed
+                      ? `Since ${player?.shadowed_at ? ago(player.shadowed_at) : 'a while'}, by ${player?.shadow_by ?? 'anticheat'}. They keep playing, their hits do nothing, their earnings are held, and every check keeps collecting proof.${player?.shadow_by && player.shadow_by !== 'anticheat' ? ' Staff shadow: no auto-kick.' : ''}`
+                      : 'Keep them in the game without letting them hurt anyone or earn anything, while the anticheat collects proof.'}
+                  </div>
+                </div>
+                <Button
+                  tone={shadowed ? 'default' : 'accent'}
+                  onClick={() =>
+                    act(
+                      () => supabase.rpc('admin_set_shadow', { p_game: game, p_user_id: userId, p_on: !shadowed }),
+                      shadowed ? 'Shadow mode lifted.' : 'Shadowed. Online players switch within a few seconds.',
+                    )
+                  }
+                >
+                  {shadowed ? 'Lift' : 'Shadow'}
+                </Button>
+              </div>
+            </section>
+          )}
 
           {online && (
             <section className="flex flex-wrap items-center gap-2">
@@ -219,6 +305,120 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
             {error && <div className="mt-3 text-sm text-bad">{error}</div>}
           </section>
 
+          {actMsg && <div className="text-sm text-muted">{actMsg}</div>}
+
+          {(reports.length > 0 || (player?.reports_made ?? 0) > 0) && (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                Reports{openReports.length > 0 && <span className="text-warn"> · {openReports.length} open</span>}
+              </h3>
+              {reports.length > 0 && (
+                <ul className="space-y-2">
+                  {reports.slice(0, 8).map((r) => (
+                    <li key={r.id} className="rounded-lg border border-line bg-panel p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>
+                          <span className="font-medium text-warn">{r.reason}</span>
+                          <span className="text-muted"> by </span>
+                          <button onClick={() => open(r.reporter_id)} className="font-mono text-xs text-accent hover:underline">
+                            {r.reporter_id}
+                          </button>
+                        </span>
+                        <span className="text-xs text-muted">
+                          {r.status !== 'open' && `${r.status} · `}weight {r.weight.toFixed(2)} · {ago(r.created_at)}
+                        </span>
+                      </div>
+                      {r.note && <div className="mt-1 text-muted">"{r.note}"</div>}
+                      {r.replay_id && (
+                        <button onClick={() => openReplay(r.replay_id!)} className="mt-1 text-xs text-accent hover:underline">
+                          ▶ replay from the moment of the report
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {openReports.length > 0 && !banned && (
+                <div className="mt-2">
+                  <Button tone="ghost" onClick={() => act(() => supabase.rpc('admin_decide_reports', { p_game: game, p_target: userId, p_confirm: false }), 'Reports dismissed.')}>
+                    Dismiss open reports
+                  </Button>
+                </div>
+              )}
+              {player && player.reports_made > 0 && (
+                <p className="mt-2 text-xs text-muted">
+                  As a reporter: {player.reports_made} sent, {player.reports_confirmed} led to a ban, {player.reports_dismissed} dismissed.
+                </p>
+              )}
+            </section>
+          )}
+
+          <section className="rounded-xl border border-line bg-panel p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Gains this week</div>
+            {gained.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">
+                Nothing recorded. Leaderstats are tracked automatically, other currencies and items need AntiCheat.Grant in your game code.
+              </p>
+            ) : (
+              <ul className="mt-2 grid grid-cols-2 gap-2">
+                {gained.slice(0, 8).map((g) => (
+                  <li key={g.label} className="rounded-lg bg-panel-2 px-3 py-2">
+                    <div className="truncate text-xs text-muted">{g.label}</div>
+                    <div className="font-mono">
+                      {Math.round(g.amount)}
+                      {g.held > 0 && <span className="ml-1.5 text-xs text-veil">+{Math.round(g.held)} held</span>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <select
+                value={undoWindow}
+                onChange={(e) => setUndoWindow(Number(e.target.value))}
+                className="rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-sm"
+              >
+                {UNDO_WINDOWS.map((w, i) => (
+                  <option key={w.label} value={i}>
+                    Undo {w.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                tone="danger"
+                onClick={() =>
+                  act(
+                    () => supabase.rpc('admin_revert', { p_game: game, p_user_id: userId, p_hours: UNDO_WINDOWS[undoWindow].hours }),
+                    'Undo queued. The next live server of the game runs it, usually within 20 seconds.',
+                  )
+                }
+              >
+                Undo gains
+              </Button>
+              <span className="text-xs text-muted">bans do this on their own</span>
+            </div>
+            {reverts.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {reverts.slice(0, 4).map((r) => (
+                  <li key={r.id} className="flex items-start gap-2 text-xs">
+                    <span
+                      className={`mt-0.5 rounded px-1.5 py-0.5 font-semibold uppercase ${
+                        r.status === 'done' ? 'bg-good/15 text-good' : r.status === 'failed' ? 'bg-bad/15 text-bad' : 'bg-line text-muted'
+                      }`}
+                    >
+                      {r.status === 'sent' ? 'running' : r.status}
+                    </span>
+                    <span className="flex-1 text-muted">
+                      {summaryText(r.summary)}
+                      {r.result && <span className="block text-muted/70">{r.result}</span>}
+                    </span>
+                    <span className="text-muted">{ago(r.created_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {replays.length > 0 && (
             <section>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">3D replays</h3>
@@ -271,7 +471,19 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
               <ul className="divide-y divide-line rounded-lg border border-line bg-panel">
                 {actions.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                    <span className={a.action === 'unban' ? 'text-good' : a.action === 'ban' ? 'text-bad' : 'text-warn'}>{a.action}</span>
+                    <span
+                      className={
+                        a.action === 'unban' || a.action === 'unshadow'
+                          ? 'text-good'
+                          : a.action === 'ban' || a.action === 'revert'
+                            ? 'text-bad'
+                            : a.action === 'shadow'
+                              ? 'text-veil'
+                              : 'text-warn'
+                      }
+                    >
+                      {a.action === 'revert' ? 'undo' : a.action}
+                    </span>
                     <span className="flex-1 truncate text-muted">{a.reason}</span>
                     <span className="text-xs text-muted">
                       {a.actor} · {ago(a.created_at)}

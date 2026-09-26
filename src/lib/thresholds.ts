@@ -8,6 +8,7 @@ export const GROUPS: { title: string; fields: Field[] }[] = [
       { key: 'KickScore', label: 'Kick score', hint: 'Score needed before a kick', step: 5, def: 100 },
       { key: 'HalfLife', label: 'Half-life (s)', hint: 'How fast suspicion fades', step: 5, def: 45 },
       { key: 'MinCorroboratingChecks', label: 'Checks that must agree', hint: 'Honeypots skip this', step: 1, def: 2 },
+      { key: 'ShadowScore', label: 'Shadow score', hint: 'Score that puts a suspect in shadow mode', step: 5, def: 60 },
     ],
   },
   {
@@ -64,6 +65,9 @@ export const FEATURES: { key: string; label: string; hint: string; def: boolean 
   { key: 'AltDetection', label: 'Alt detection', hint: 'flag new accounts that play like banned ones', def: true },
   { key: 'GlobalBans', label: 'Instant global bans', hint: 'push bans to every server in about a second', def: true },
   { key: 'CrossServerTrust', label: 'Trust follows players', hint: 'suspicion carries over between servers', def: true },
+  { key: 'ShadowMode', label: 'Shadow mode', hint: 'suspects stay in, hits do nothing, earnings held', def: true },
+  { key: 'Reports', label: 'Player reports', hint: 'report button in game, weighted by track record', def: true },
+  { key: 'RevertGains', label: 'Undo on ban', hint: 'a ban takes back what they gained while cheating', def: true },
   { key: 'CheaterIsland', label: 'Cheater Island', hint: 'send cheaters to their own server instead of kicking', def: false },
 ]
 

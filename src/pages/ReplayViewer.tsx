@@ -6,7 +6,7 @@ import { caseFile } from '../lib/caseFile'
 import { CHECK_COLORS, ago, robloxProfile } from '../lib/format'
 import { Button } from '../components/ui'
 
-type Props = { id: number; back: () => void; openPlayer: (id: number) => void }
+type Props = { id: number; back: () => void; openPlayer: (id: number, game?: number) => void }
 
 const SPEEDS = [0.25, 0.5, 1, 2]
 
@@ -395,7 +395,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Case file</div>
               <h2 className="mt-1 text-lg font-semibold">{name}</h2>
               <div className="mt-1 flex gap-3 text-xs">
-                <button onClick={() => openPlayer(replay.user_id)} className="text-accent hover:underline">
+                <button onClick={() => openPlayer(replay.user_id, replay.game_id)} className="text-accent hover:underline">
                   Player record
                 </button>
                 <a href={robloxProfile(replay.user_id)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase, type Ban, type Config, type Player } from '../lib/supabase'
 import { DEFAULTS } from '../lib/thresholds'
 import { errorText } from '../lib/format'
+import { useGame } from '../lib/game'
 import { Button, Empty, Panel } from '../components/ui'
 
 type Suggestion = { key: string; current: number; suggested: number; reason: string }
@@ -9,10 +10,10 @@ type Row = { user_id: number; check_name: string; raw: number | null; severity: 
 
 const CHECKS = ['Movement', 'Character', 'Remote', 'Statistical', 'Timing', 'Honeypot', 'Client', 'Combat']
 
-async function push(config: Config | null, patch: Record<string, number>) {
+async function push(game: number, config: Config | null, patch: Record<string, number>) {
   const next = { ...DEFAULTS, ...(config?.thresholds ?? {}), ...patch }
   const diff = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== DEFAULTS[k]))
-  return supabase.rpc('admin_set_thresholds', { p_thresholds: diff })
+  return supabase.rpc('admin_set_thresholds', { p_game: game, p_thresholds: diff })
 }
 
 export function Tuning({ config, players, bans, reload }: { config: Config | null; players: Player[]; bans: Ban[]; reload: () => void }) {
@@ -25,16 +26,18 @@ export function Tuning({ config, players, bans, reload }: { config: Config | nul
 }
 
 function Suggestions({ config, reload }: { config: Config | null; reload: () => void }) {
+  const { game } = useGame()
   const [data, setData] = useState<{ labeled: number; needed: number; suggestions: Suggestion[] } | null>(null)
   const [msg, setMsg] = useState('')
 
-  const load = () => supabase.rpc('tuning_suggestions').then(({ data }) => setData(data))
+  const load = () => supabase.rpc('tuning_suggestions', { p_game: game }).then(({ data }) => setData(data))
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game])
 
   async function apply(s: Suggestion) {
-    const { error } = await push(config, { [s.key]: s.suggested })
+    const { error } = await push(game, config, { [s.key]: s.suggested })
     setMsg(error ? errorText(error) : `${s.key} set to ${s.suggested}. Servers pick it up within 20s.`)
     reload()
     load()
@@ -119,6 +122,7 @@ function simulate(rows: Row[], s: Settings, oldWeights: Record<string, number>) 
 }
 
 function WhatIf({ config, players, bans, reload }: { config: Config | null; players: Player[]; bans: Ban[]; reload: () => void }) {
+  const { game } = useGame()
   const current = useMemo(() => ({ ...DEFAULTS, ...(config?.thresholds ?? {}) }) as Settings, [config])
   const [s, setS] = useState<Settings>(current)
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -130,9 +134,9 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
     ;(async () => {
-      const { data: kicks } = await supabase.from('actions').select('user_id').eq('action', 'kick').gte('created_at', since).limit(2000)
+      const { data: kicks } = await supabase.from('actions').select('user_id').eq('game_id', game).eq('action', 'kick').gte('created_at', since).limit(2000)
       setActual(new Set((kicks ?? []).map((k) => k.user_id)))
-      const { data: suspects } = await supabase.from('players').select('user_id').or('kicks.gt.0,peak_score.gte.20').gte('last_seen', since).limit(400)
+      const { data: suspects } = await supabase.from('players').select('user_id').eq('game_id', game).or('kicks.gt.0,peak_score.gte.20').gte('last_seen', since).limit(400)
       const ids = (suspects ?? []).map((p) => p.user_id)
       if (ids.length === 0) {
         setRows([])
@@ -141,13 +145,14 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
       const { data } = await supabase
         .from('flags')
         .select('user_id, check_name, raw, severity, created_at')
+        .eq('game_id', game)
         .in('user_id', ids)
         .gte('created_at', since)
         .order('created_at')
         .limit(20000)
       setRows((data as Row[]) ?? [])
     })()
-  }, [])
+  }, [game])
 
   const names = useMemo(() => new Map(players.map((p) => [p.user_id, p.username])), [players])
   const banned = useMemo(() => new Set(bans.filter((b) => b.active).map((b) => b.user_id)), [bans])
@@ -177,7 +182,7 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
 
   async function apply() {
     const patch = Object.fromEntries(Object.entries(s).filter(([k, v]) => v !== current[k]))
-    const { error } = await push(config, patch)
+    const { error } = await push(game, config, patch)
     setMsg(error ? errorText(error) : 'Pushed to every server.')
     reload()
   }

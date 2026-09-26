@@ -20,6 +20,32 @@ export async function secret(name: string): Promise<string | null> {
   return value;
 }
 
+// per-game secrets: webhook, open cloud key
+export async function gameSecret(game: number, name: "discord_webhook" | "open_cloud_key"): Promise<string | null> {
+  const key = `${game}:${name}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.value;
+  const { data } = await db.rpc("game_secret_for", { p_game: game, p_name: name });
+  const value = typeof data === "string" && data ? data : null;
+  cache.set(key, { value, at: Date.now() });
+  return value;
+}
+
+const games = new Map<string, { id: number | null; at: number }>();
+
+// game key -> game id. null when the key isn't ours
+export async function gameForKey(key: string): Promise<number | null> {
+  if (!key || key.length > 200) return null;
+  const hash = await sha256(key);
+  const hit = games.get(hash);
+  if (hit && Date.now() - hit.at < 60_000) return hit.id;
+  const { data, error } = await db.rpc("game_auth", { p_hash: hash });
+  if (error) return null;
+  const id = typeof data === "number" ? data : null;
+  games.set(hash, { id, at: Date.now() });
+  return id;
+}
+
 export const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
@@ -46,6 +72,7 @@ export async function fromDatabase(req: Request) {
 }
 
 export const replayLink = (id: number) => `${DASHBOARD}#/replay/${id}`;
-export const playerLink = (id: string | number) => `${DASHBOARD}#/player/${id}`;
+export const playerLink = (id: string | number, game?: number) =>
+  `${DASHBOARD}#/player/${id}${game ? `/${game}` : ""}`;
 export const renderLink = (id: number, token: string) =>
   `${SUPABASE_URL}/functions/v1/render?id=${id}&t=${token}`;

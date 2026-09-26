@@ -135,7 +135,7 @@ function AppealCard({ appeal, ban, player, open, openReplay }: {
   )
 }
 
-type Mine = { id: number; user_id: number; username: string; status: string; note: string; created_at: string; decided_at: string | null }
+type Mine = { id: number; user_id: number; username: string; game: string; status: string; note: string; created_at: string; decided_at: string | null }
 
 // public side: anyone signed in with discord can appeal a ban
 export function AppealForm() {
@@ -220,7 +220,10 @@ export function AppealForm() {
                   <span className="font-medium">{a.username || a.user_id}</span>
                   <span className={a.status === 'approved' ? 'text-good' : a.status === 'denied' ? 'text-bad' : 'text-warn'}>{a.status}</span>
                 </div>
-                <div className="text-xs text-muted">sent {ago(a.created_at)}{a.decided_at ? ` · decided ${ago(a.decided_at)}` : ''}</div>
+                <div className="text-xs text-muted">
+                  {a.game} · sent {ago(a.created_at)}
+                  {a.decided_at ? ` · decided ${ago(a.decided_at)}` : ''}
+                </div>
                 {a.note && <p className="mt-1 text-muted">{a.note}</p>}
               </li>
             ))}

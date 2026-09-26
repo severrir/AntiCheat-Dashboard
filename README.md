@@ -44,11 +44,13 @@ AntiCheat/
     Traps/             HoneypotService, VaultService, BaitNpcService, BaitCoinService
     Intel/             RecorderService, BehaviorService, ThreatService
     Link/              BackendService, PulseService, CommandService, MapExportService
-    Response/          BanService, GlobalBanService, IslandService
+    Response/          BanService, GlobalBanService, IslandService, ShadowService
+    Economy/           LedgerService, RevertService
+    Community/         ReportService
     Admin/             SpectatorService
 AntiCheatClient/       LocalScript: Framework.AddDeep(Controllers) + Start
-  Controllers/         HeartbeatController, SpectatorController
-  Classes/             SpectatorPanel
+  Controllers/         HeartbeatController, SpectatorController, ReportController
+  Classes/             SpectatorPanel, ReportPanel
 ```
 
 Every per-player check inherits from `Classes/Check`, so adding your own is small:
@@ -91,8 +93,10 @@ So your own remotes get flood, bad-argument and macro detection without changing
 game server --(sync 20s / pulse 5s)--> edge fn "game" --> postgres --realtime--> dashboard
      ^                                                      |
      |-- MessagingService <-- edge fn "notify" <-- ban trigger (instant global bans)
-discord <-- alerts with picture, daily report, /check /ban /unban /replay bot
+discord <-- alerts with picture, daily report, /check /ban /unban /replay /shadow bot
 ```
+
+One dashboard runs any number of games. Each game has its own key, settings, bans, webhook, Discord server and staff, and the key a server sends is how the backend knows which game it is.
 
 Checks never punish anyone directly. They report to Trust, which keeps a decaying score per player. A kick needs the score past `KickScore` **and** at least two different checks agreeing. Traps (honeypots, vault, bait) count as proof on their own, and movement proves itself by replaying the recorded path. Bans are only ever done by a person.
 
@@ -124,6 +128,10 @@ Every one of these can be switched on/off live from Settings, no republish.
 | Appeals | public appeal page, shown to staff next to the replay |
 | Learning loop | every ban/unban teaches it which checks are noisy |
 | What-if | drag the sliders, see who would've been kicked in the last 30 days |
+| Shadow mode | past `ShadowScore` a suspect keeps playing, but their hits do nothing and their earnings are held while proof piles up. Staff can shadow anyone from the dashboard or `/shadow`; those never get auto-kicked |
+| Undo on ban | a ban takes back what they gained since they started cheating (coins, items, kills) and lists who they took it from |
+| Player reports | report button + `/report` in game. Each report records a replay of the reported player, and counts more from people whose reports were right before |
+| Many games | one dashboard, a game picker, per-game keys and staff. Give a client's team access to only their game |
 | Cheater Island | **off by default**. Sends cheaters to their own server instead of kicking. Published games only |
 
 ## Using it from game code
@@ -148,7 +156,30 @@ AntiCheat.RecordMiss(player)
 AntiCheat.RecordStat(player, "CoinsPerMinute", cpm)
 
 AntiCheat.OnKicked(function(player, reason) end)
+
+-- give things through the anticheat so a ban can undo them, and shadow mode can hold them
+data.Coins += AntiCheat.Grant(player, "Coins", 100, "quest")   -- 0 while shadowed
+if AntiCheat.GrantItem(player, "Golden Sword", "shop") then giveSword(player) end
+AntiCheat.RecordKill(killer, victim)
+AntiCheat.Transfer(seller, buyer, "Gem", nil)                   -- trades and steals, so victims can be paid back
+
+-- runs on any live server when someone is banned, even if they're offline
+AntiCheat.OnRevert(function(userId, summary)
+	-- summary.currency = { Coins = 5400 }, summary.items = { ["Golden Sword"] = 1 },
+	-- summary.kills = 37, summary.victims = { ["123"] = { currency = { Gem = 2 } } }
+	local ok = pcall(function()
+		store:UpdateAsync(userId, function(d)
+			d.Coins = math.max(0, d.Coins - (summary.currency.Coins or 0))
+			return d
+		end)
+	end)
+	return ok
+end)
 ```
+
+Games that only use `leaderstats` don't need any of that: rises there are recorded automatically, and without an `OnRevert` handler the undo takes them back from players who are online. Turn `Config.AutoLeaderstats` off if you call `Grant` yourself.
+
+Got your own report UI? Set `Config.ReportButton = false` and call `AntiCheat.Report(reporter, target, "Flying", note)`.
 
 Morphs, scaling or removing limbs on purpose? `AntiCheat.Exempt(player, "Character", 3)` first.
 
@@ -173,3 +204,4 @@ luau roblox/tests/run.luau
 - Settings → My Roblox account (needed for the spectate button)
 - Discord bot: set the Interactions Endpoint URL shown in Settings, then install the app to your server
 - Open Cloud key (Messaging Service → publish, for this experience) goes in Settings → Keys. It's write-only and never reaches the game or the site
+- Another game: Settings → Game → Add another game. Its key is shown once; put it in that game's `anticheat_key` secret. Then add its universe id and Discord server id, and tick it for its staff in Team

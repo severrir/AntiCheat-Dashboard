@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { supabase, type Ban, type Player } from '../lib/supabase'
 import { ago, errorText } from '../lib/format'
+import { useGame } from '../lib/game'
 import { Button, Empty, Panel } from '../components/ui'
 
 export function Bans({ bans, players, open }: { bans: Ban[]; players: Player[]; open: (id: number) => void }) {
+  const { game } = useGame()
   const [id, setId] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
@@ -25,7 +27,7 @@ export function Bans({ bans, players, open }: { bans: Ban[]; players: Player[]; 
     }
     setBusy(true)
     setError('')
-    const { error } = await supabase.rpc('admin_ban', { p_user_id: userId, p_reason: reason.trim(), p_hours: null })
+    const { error } = await supabase.rpc('admin_ban', { p_game: game, p_user_id: userId, p_reason: reason.trim(), p_hours: null })
     setBusy(false)
     if (error) setError(errorText(error))
     else {

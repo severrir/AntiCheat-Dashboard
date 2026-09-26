@@ -1,5 +1,5 @@
 import { caseFile, type ReplayEvent, type Sample } from "../_shared/caseFile.ts";
-import { db, json, replayLink, renderLink, secret, sameString, sha256, SERVICE_KEY, SUPABASE_URL } from "../_shared/util.ts";
+import { db, gameForKey, gameSecret, json, playerLink, replayLink, renderLink, SERVICE_KEY, SUPABASE_URL } from "../_shared/util.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
@@ -8,6 +8,7 @@ declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 const MAX_BODY = 600_000;
 const ID_RE = /^[1-9][0-9]{0,18}$/;
 const CHECK_RE = /^[A-Za-z]{1,24}$/;
+const REASON_RE = /^[A-Za-z ]{1,24}$/;
 
 const num = (v: unknown, lo: number, hi: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
@@ -97,23 +98,83 @@ function parseSync(body: Record<string, unknown>) {
   let since: string | null = null;
   if (typeof body.since === "string" && !Number.isNaN(Date.parse(body.since))) since = body.since;
 
+  const reports = arr(body.reports, 50).flatMap((r: any) => {
+    const target = id(r?.target), reporter = id(r?.reporter);
+    if (!target || !reporter || target === reporter || typeof r.reason !== "string" || !REASON_RE.test(r.reason)) return [];
+    const replay = num(r.replay, 1, 9e15);
+    return [{
+      target, reporter, reason: r.reason, note: str(r.note, 200),
+      w: num(r.w, 0, 1) ?? 1, score: num(r.score, 0, 1e6), replay: replay === null ? null : Math.trunc(replay),
+      name: str(r.name, 32), by: str(r.by, 32),
+    }];
+  });
+
+  const ledger = arr(body.ledger, 500).flatMap((l: any) => {
+    const pid = id(l?.id);
+    const amount = num(l?.amount, -1e12, 1e12);
+    if (!pid || !["currency", "item", "kill"].includes(l?.kind) || typeof l?.key !== "string" || !l.key || amount === null) return [];
+    return [{
+      id: pid, kind: l.kind, key: l.key.slice(0, 40), amount, victim: id(l.victim),
+      source: str(l.source, 40), withheld: bool(l.withheld),
+    }];
+  });
+
+  const shadow = arr(body.shadow, 100).flatMap((x: any) => {
+    const pid = id(x?.id);
+    return pid && typeof x?.on === "boolean" ? [{ id: pid, on: x.on, why: str(x.why, 120), name: str(x.name, 32) }] : [];
+  });
+
   return {
     server: str(body.server, 64),
     place: id(body.place),
     since,
     threat: Math.trunc(num(body.threat, 0, 3) ?? 0),
     island: bool(body.island),
-    players, flags, kicks, acks,
+    players, flags, kicks, acks, reports, ledger, shadow,
     cmdAcks: cmdAcks(body.cmdAcks),
+    revertAcks: cmdAcks(body.revertAcks),
   };
 }
 
-type Kick = ReturnType<typeof parseSync>["kicks"][number];
+type Sync = ReturnType<typeof parseSync>;
 
-async function postKicks(kicks: Kick[], server: string) {
-  const url = await secret("discord_webhook");
+function send(url: string, embeds: unknown[]) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username: "AntiCheat", embeds, allowed_mentions: { parse: [] } }),
+  }).catch(() => {});
+}
+
+async function postAlerts(game: number, p: Sync) {
+  const url = await gameSecret(game, "discord_webhook");
   if (!url) return;
+  await postKicks(url, p.kicks, p.server);
 
+  // auto-shadowed players and fresh reports are worth a heads-up, not a wall of pings
+  const embeds: unknown[] = [];
+  for (const s of p.shadow.filter((x) => x.on).slice(0, 3)) {
+    embeds.push({
+      title: `Shadowed ${s.name || s.id}`,
+      url: playerLink(s.id, game),
+      description: `Still in the game, but their hits do nothing and their earnings are held.\n${s.why}`,
+      color: 0xa78bfa,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  for (const r of p.reports.filter((x) => x.replay).slice(0, 3)) {
+    embeds.push({
+      title: `Report: ${r.name || r.target} for ${r.reason}`,
+      url: playerLink(r.target, game),
+      description: `Reported by ${r.by || r.reporter}${r.note ? `: "${r.note}"` : ""}\n**[▶ What they were doing](${replayLink(r.replay!)})**`,
+      color: 0xfbbf24,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  if (embeds.length) await send(url, embeds);
+}
+
+async function postKicks(url: string, kicks: Sync["kicks"], server: string) {
   for (const k of kicks.slice(0, 5)) {
     const embed: Record<string, unknown> = {
       title: `Kicked ${k.name || k.id}`,
@@ -145,20 +206,16 @@ async function postKicks(kicks: Kick[], server: string) {
       }
     }
 
-    await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "AntiCheat", embeds: [embed], allowed_mentions: { parse: [] } }),
-    }).catch(() => {});
+    await send(url, [embed]);
   }
 }
 
 // mission control goes over a private realtime channel, only approved admins can listen
-async function broadcast(payload: unknown) {
+async function broadcast(game: number, payload: unknown) {
   await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
     method: "POST",
     headers: { "content-type": "application/json", apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}` },
-    body: JSON.stringify({ messages: [{ topic: "mission", event: "pulse", payload, private: true }] }),
+    body: JSON.stringify({ messages: [{ topic: `mission:${game}`, event: "pulse", payload, private: true }] }),
   }).catch(() => {});
 }
 
@@ -215,11 +272,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "method" });
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return json(413, { error: "size" });
 
-  const key = req.headers.get("x-game-key") ?? "";
-  const expected = await secret("game_key_sha256");
-  if (!key || key.length > 200 || !expected || !sameString(await sha256(key), expected)) {
-    return json(401, { error: "auth" });
-  }
+  // the key says which game this server belongs to
+  const game = await gameForKey(req.headers.get("x-game-key") ?? "");
+  if (!game) return json(401, { error: "auth" });
 
   const raw = await req.text();
   if (raw.length > MAX_BODY) return json(413, { error: "size" });
@@ -235,28 +290,30 @@ Deno.serve(async (req) => {
     case "join": {
       const pid = id(body.id);
       if (!pid) return json(400, { error: "id" });
-      const { data, error } = await db.rpc("game_join", { p_user_id: pid });
+      const { data, error } = await db.rpc("game_join", { p_game: game, p_user_id: pid });
       return error ? json(500, { error: "db" }) : json(200, data);
     }
 
     case "sync": {
       const payload = parseSync(body);
-      const { data, error } = await db.rpc("game_ingest", { p: payload });
+      const { data, error } = await db.rpc("game_ingest", { p_game: game, p: payload });
       if (error) {
         console.error("ingest", error.message);
         return json(500, { error: "db" });
       }
       // don't make the game server wait on discord
-      if (payload.kicks.length > 0) EdgeRuntime.waitUntil(postKicks(payload.kicks, payload.server));
+      if (payload.kicks.length || payload.reports.length || payload.shadow.length) {
+        EdgeRuntime.waitUntil(postAlerts(game, payload));
+      }
       return json(200, data);
     }
 
     case "pulse": {
       const p = parsePulse(body);
-      const { data, error } = await db.rpc("game_pulse", { p });
+      const { data, error } = await db.rpc("game_pulse", { p_game: game, p });
       if (error) return json(500, { error: "db" });
       if (p.live) {
-        EdgeRuntime.waitUntil(broadcast({
+        EdgeRuntime.waitUntil(broadcast(game, {
           server: p.server, place: p.place, threat: p.threat, island: p.island, t: Date.now(),
           players: p.players.map(({ admin, ...rest }) => ({ ...rest, admin: admin || undefined })),
         }));
@@ -267,7 +324,7 @@ Deno.serve(async (req) => {
     case "replay": {
       const r = parseReplay(body);
       if (!r) return json(400, { error: "replay" });
-      const { data, error } = await db.rpc("game_replay", { p: r });
+      const { data, error } = await db.rpc("game_replay", { p_game: game, p: r });
       return error ? json(500, { error: "db" }) : json(200, { id: (data as any).id });
     }
 
@@ -278,7 +335,7 @@ Deno.serve(async (req) => {
       const bounds = vec(body.bounds, 6);
       if (!place || !version || total === null) return json(400, { error: "map" });
       const { data, error } = await db.rpc("game_map_check", {
-        p_place: place, p_version: version, p_total: Math.trunc(total), p_bounds: bounds,
+        p_game: game, p_place: place, p_version: version, p_total: Math.trunc(total), p_bounds: bounds,
       });
       return error ? json(500, { error: "db" }) : json(200, { needed: data === true });
     }
@@ -293,7 +350,7 @@ Deno.serve(async (req) => {
         return v ? [v] : [];
       });
       const { error } = await db.rpc("game_map_chunk", {
-        p_place: place, p_version: version, p_idx: Math.trunc(idx), p_parts: parts,
+        p_game: game, p_place: place, p_version: version, p_idx: Math.trunc(idx), p_parts: parts,
       });
       return error ? json(500, { error: "db" }) : json(200, { ok: true });
     }

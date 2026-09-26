@@ -95,6 +95,22 @@ function BackendService:Ack(userId, active)
 	self._batch:AddAck(userId, active)
 end
 
+function BackendService:QueueReport(report)
+	self._batch:AddReport(report)
+end
+
+function BackendService:QueueShadow(profile, on, why)
+	self._batch:AddShadow(profile.userId, on, why, profile.player.Name)
+end
+
+function BackendService:QueueLedger(userId, kind, key, amount, victim, source, withheld)
+	self._batch:AddLedger(userId, kind, key, amount, victim, source, withheld)
+end
+
+function BackendService:AckRevert(id, ok, result)
+	self._batch:AddRevertAck(id, ok, result)
+end
+
 function BackendService:CheckJoin(userId)
 	return self:Post({ op = "join", id = tostring(userId) })
 end
@@ -137,6 +153,10 @@ function BackendService:Sync()
 		flags = batch.flags,
 		kicks = batch.kicks,
 		acks = batch.acks,
+		reports = batch.reports,
+		shadow = batch.shadow,
+		ledger = batch.ledger,
+		revertAcks = batch.revertAcks,
 		cmdAcks = self._commands:TakeAcks(),
 	})
 	self._syncing = false

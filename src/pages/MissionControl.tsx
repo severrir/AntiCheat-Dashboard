@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadMap, supabase, type MapPart, type Player, type Server } from '../lib/supabase'
 import { CHECK_COLORS, ago } from '../lib/format'
 import { Empty, Panel } from '../components/ui'
+import { useGame } from '../lib/game'
 
 type LivePlayer = { id: string; name: string; score: number; x: number | null; y: number | null; z: number | null; yaw: number; admin?: boolean }
 type Pulse = { server: string; place: string | null; threat: number; island: boolean; t: number; players: LivePlayer[] }
@@ -22,6 +23,7 @@ function cachedMap(place: number) {
 }
 
 export function MissionControl({ servers, players, kick, open }: Props) {
+  const { game } = useGame()
   const [pulses, setPulses] = useState<Record<string, Pulse>>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [mode, setMode] = useState<'live' | 'heat'>('live')
@@ -35,31 +37,32 @@ export function MissionControl({ servers, players, kick, open }: Props) {
       await supabase.realtime.setAuth()
       if (cancelled) return
       channel = supabase
-        .channel('mission', { config: { private: true } })
+        .channel(`mission:${game}`, { config: { private: true } })
         .on('broadcast', { event: 'pulse' }, ({ payload }) => {
           const p = payload as Pulse
           if (p?.server) setPulses((prev) => ({ ...prev, [p.server]: { ...p, t: Date.now() } }))
         })
         .subscribe()
     })()
+    setPulses({})
     return () => {
       cancelled = true
       if (channel) supabase.removeChannel(channel)
     }
-  }, [])
+  }, [game])
 
   const list = useMemo(() => {
     const byId = new Map(servers.map((s) => [s.server_id, s]))
     for (const p of Object.values(pulses)) {
       if (!byId.has(p.server) && Date.now() - p.t < 30_000) {
         byId.set(p.server, {
-          server_id: p.server, place_id: p.place ? Number(p.place) : null, players: p.players.length,
+          server_id: p.server, game_id: game, place_id: p.place ? Number(p.place) : null, players: p.players.length,
           threat: p.threat, island: p.island, last_seen: new Date(p.t).toISOString(),
         })
       }
     }
     return [...byId.values()].sort((a, b) => b.threat - a.threat || b.players - a.players)
-  }, [servers, pulses])
+  }, [servers, pulses, game])
 
   const current = list.find((s) => s.server_id === selected) ?? list[0]
   const pulse = current ? pulses[current.server_id] : undefined

@@ -88,6 +88,10 @@ function CombatService:ValidateHit(attacker, victim, opts)
 
 	c.hits += 1
 	c.last[weapon] = now
+	-- shadow mode: the swing counts for their stats, the damage never lands
+	if self._shadow:IsShadowed(attacker) then
+		return false
+	end
 	return true
 end
 
@@ -103,6 +107,7 @@ function CombatService:Start()
 	self._players = Framework.Get("ACPlayerService")
 	self._trust = Framework.Get("ACTrustService")
 	self._bait = Framework.Get("ACBaitNpcService")
+	self._shadow = Framework.Get("ACShadowService")
 end
 
 return CombatService

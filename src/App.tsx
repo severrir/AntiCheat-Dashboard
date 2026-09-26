@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, type DashUser } from './lib/supabase'
+import { supabase, type DashUser, type Game } from './lib/supabase'
 import { useConsole } from './lib/useConsole'
+import { GameContext, savedGame, saveGame } from './lib/game'
 import { DEFAULTS } from './lib/thresholds'
 import { Button, Dot } from './components/ui'
 import { PlayerDrawer } from './components/PlayerDrawer'
@@ -11,6 +12,7 @@ import { Players } from './pages/Players'
 import { Feed } from './pages/Feed'
 import { CheatTools } from './pages/CheatTools'
 import { Appeals, AppealForm } from './pages/Appeals'
+import { Reports } from './pages/Reports'
 import { Tuning } from './pages/Tuning'
 import { Bans } from './pages/Bans'
 import { Settings } from './pages/Settings'
@@ -18,13 +20,14 @@ import { Settings } from './pages/Settings'
 // three.js is big, only load it when someone opens a replay
 const ReplayViewer = lazy(() => import('./pages/ReplayViewer'))
 
-const TABS = ['overview', 'mission', 'players', 'feed', 'tools', 'appeals', 'tuning', 'bans', 'settings'] as const
+const TABS = ['overview', 'mission', 'players', 'feed', 'reports', 'tools', 'appeals', 'tuning', 'bans', 'settings'] as const
 type Tab = (typeof TABS)[number]
 const LABELS: Record<Tab, string> = {
   overview: 'Overview',
   mission: 'Mission Control',
   players: 'Players',
   feed: 'Live feed',
+  reports: 'Reports',
   tools: 'Cheat tools',
   appeals: 'Appeals',
   tuning: 'Tuning',
@@ -32,13 +35,17 @@ const LABELS: Record<Tab, string> = {
   settings: 'Settings',
 }
 
-type Route = { tab: Tab | 'appeal'; player?: number; replay?: number }
+type Route = { tab: Tab | 'appeal'; player?: number; replay?: number; game?: number }
 
+// #/player/<id>/<game> so links from discord open the right game
 function parseHash(): Route {
-  const [, a, b] = window.location.hash.split('/')
+  const [, a, b, c] = window.location.hash.split('/')
   const id = Number(b)
+  const game = Number(c)
   if (a === 'replay' && Number.isSafeInteger(id)) return { tab: 'overview', replay: id }
-  if (a === 'player' && Number.isSafeInteger(id)) return { tab: 'players', player: id }
+  if (a === 'player' && Number.isSafeInteger(id)) {
+    return { tab: 'players', player: id, game: Number.isSafeInteger(game) && game > 0 ? game : undefined }
+  }
   if (a === 'appeal') return { tab: 'appeal' }
   return { tab: (TABS as readonly string[]).includes(a) ? (a as Tab) : 'overview' }
 }
@@ -102,7 +109,9 @@ function Pending({ me, signOut }: { me: DashUser | null; signOut: () => void }) 
       <main className="px-5 py-8">
         {me && (
           <p className="mx-auto mb-6 max-w-xl rounded-lg border border-line bg-panel px-4 py-3 text-sm text-muted">
-            Staff? The owner still needs to approve your account (Settings → Team). Everyone else can appeal a ban below.
+            {me.role === 'staff'
+              ? "You're on the team but haven't been given a game yet. The owner can add you in Settings → Team."
+              : 'Staff? The owner still needs to approve your account (Settings → Team). Everyone else can appeal a ban below.'}
           </p>
         )}
         <AppealForm />
@@ -154,16 +163,47 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const approved = me?.role === 'owner' || me?.role === 'admin'
-  const data = useConsole(approved)
+  const [games, setGames] = useState<Game[]>([])
+  const [picked, setPicked] = useState<number | null>(savedGame)
+  const signedIn = me?.role === 'owner' || me?.role === 'admin' || me?.role === 'staff'
+
+  const reloadGames = useCallback(() => {
+    supabase
+      .from('games')
+      .select('*')
+      .order('id')
+      .then(({ data }) => setGames(data ?? []))
+  }, [])
+  useEffect(() => {
+    if (signedIn) reloadGames()
+  }, [signedIn, reloadGames])
+
+  // a link can point at a game, otherwise the last one used, otherwise the first
+  const game =
+    games.find((g) => g.id === route.game)?.id ?? games.find((g) => g.id === picked)?.id ?? games[0]?.id ?? 0
+  const pickGame = useCallback((id: number) => {
+    setPicked(id)
+    saveGame(id)
+  }, [])
+  useEffect(() => {
+    if (route.game && route.game === game && route.game !== picked) pickGame(route.game)
+  }, [route.game, game, picked, pickGame])
+
+  const approved = signedIn && games.length > 0
+  const data = useConsole(approved, game)
   const kick = data.config?.thresholds?.KickScore ?? DEFAULTS.KickScore
+  const current = games.find((g) => g.id === game)
+  const gameState = useMemo(() => ({ game, games, current, reloadGames }), [game, games, current, reloadGames])
 
   const signOut = useCallback(() => {
     supabase.auth.signOut()
   }, [])
-  const open = useCallback((id: number) => {
-    window.location.hash = `#/player/${id}`
-  }, [])
+  const open = useCallback(
+    (id: number, inGame?: number) => {
+      window.location.hash = `#/player/${id}/${inGame ?? game}`
+    },
+    [game],
+  )
   const openReplay = useCallback((id: number) => {
     window.location.hash = `#/replay/${id}`
   }, [])
@@ -174,22 +214,30 @@ export default function App() {
   const selectedPlayer = useMemo(() => data.players.find((p) => p.user_id === route.player), [data.players, route.player])
   const selectedBan = useMemo(() => data.bans.find((b) => b.user_id === route.player), [data.bans, route.player])
   const openAppeals = data.appeals.filter((a) => a.status === 'open').length
+  const reported = new Set(data.reports.filter((r) => r.status === 'open').map((r) => r.target_id)).size
 
   if (!ready) return null
   if (!session) return <Login appeal={route.tab === 'appeal'} />
+  // signed-in staff wait a moment for the game list before being told they have none
+  if (signedIn && games.length === 0 && route.tab !== 'appeal') {
+    return <GamesLoading me={me} signOut={signOut} reload={reloadGames} />
+  }
   if (!approved) return <Pending me={me} signOut={signOut} />
 
   if (route.replay) {
     return (
-      <Suspense fallback={<div className="grid min-h-full place-items-center text-sm text-muted">Loading 3D viewer…</div>}>
-        <ReplayViewer id={route.replay} back={close} openPlayer={open} />
-      </Suspense>
+      <GameContext.Provider value={gameState}>
+        <Suspense fallback={<div className="grid min-h-full place-items-center text-sm text-muted">Loading 3D viewer…</div>}>
+          <ReplayViewer id={route.replay} back={close} openPlayer={open} />
+        </Suspense>
+      </GameContext.Provider>
     )
   }
 
   const tab = route.tab === 'appeal' ? 'appeals' : route.tab
 
   return (
+    <GameContext.Provider value={gameState}>
     <div className="min-h-full">
       <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-5 px-5 py-3">
@@ -198,6 +246,22 @@ export default function App() {
             <span className="font-semibold tracking-tight">AntiCheat</span>
             <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">console</span>
           </a>
+          {games.length > 1 ? (
+            <select
+              value={game}
+              onChange={(e) => pickGame(Number(e.target.value))}
+              aria-label="Game"
+              className="max-w-44 truncate rounded-lg border border-line bg-panel-2 px-2 py-1 text-sm font-medium outline-none focus:border-accent/60"
+            >
+              {games.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="hidden truncate text-sm text-muted sm:inline">{current?.name}</span>
+          )}
           <div className="ml-auto flex items-center gap-4">
             <span className="flex items-center gap-2 text-xs text-muted">
               <Dot on={data.live} /> {data.live ? 'live' : 'connecting'}
@@ -217,6 +281,9 @@ export default function App() {
               {t === 'appeals' && openAppeals > 0 && (
                 <span className="ml-1.5 rounded-full bg-warn/20 px-1.5 text-[10px] font-semibold text-warn">{openAppeals}</span>
               )}
+              {t === 'reports' && reported > 0 && (
+                <span className="ml-1.5 rounded-full bg-warn/20 px-1.5 text-[10px] font-semibold text-warn">{reported}</span>
+              )}
             </a>
           ))}
         </nav>
@@ -231,11 +298,12 @@ export default function App() {
             {tab === 'mission' && <MissionControl servers={data.servers} players={data.players} kick={kick} open={open} />}
             {tab === 'players' && <Players players={data.players} bans={data.bans} kick={kick} open={open} />}
             {tab === 'feed' && <Feed flags={data.flags} players={data.players} fresh={data.fresh} open={open} />}
+            {tab === 'reports' && <Reports reports={data.reports} players={data.players} bans={data.bans} kick={kick} open={open} openReplay={openReplay} />}
             {tab === 'tools' && <CheatTools players={data.players} open={open} openReplay={openReplay} />}
             {tab === 'appeals' && <Appeals appeals={data.appeals} bans={data.bans} players={data.players} open={open} openReplay={openReplay} />}
             {tab === 'tuning' && <Tuning config={data.config} players={data.players} bans={data.bans} reload={data.reload} />}
             {tab === 'bans' && <Bans bans={data.bans} players={data.players} open={open} />}
-            {tab === 'settings' && me && <Settings config={data.config} users={data.users} me={me} reload={data.reload} />}
+            {tab === 'settings' && me && <Settings config={data.config} users={data.users} staff={data.staff} me={me} reload={data.reload} />}
           </>
         )}
       </main>
@@ -252,5 +320,20 @@ export default function App() {
         />
       )}
     </div>
+    </GameContext.Provider>
   )
+}
+
+function GamesLoading({ me, signOut, reload }: { me: DashUser | null; signOut: () => void; reload: () => void }) {
+  const [waited, setWaited] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 2500)
+    const again = setInterval(reload, 15_000)
+    return () => {
+      clearTimeout(t)
+      clearInterval(again)
+    }
+  }, [reload])
+  if (!waited) return <div className="grid min-h-full place-items-center text-sm text-muted">Loading…</div>
+  return <Pending me={me} signOut={signOut} />
 }
