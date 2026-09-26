@@ -18,6 +18,47 @@ end
 
 local MAX_ACCESSORIES = 12
 
+-- the two parts a joint connects and the offsets on each side. old rigs use Motor6D (C0/C1),
+-- newer ones use AnimationConstraint between two attachments. either way the rest pose is
+-- part1 = part0 * c0 * c1:Inverse()
+local function joint(d)
+	if d:IsA("Motor6D") then
+		return d.Part0, d.Part1, d.C0, d.C1
+	elseif d:IsA("AnimationConstraint") then
+		local a0, a1 = d.Attachment0, d.Attachment1
+		local p0 = a0 and a0.Parent
+		local p1 = a1 and a1.Parent
+		if p0 and p1 and p0:IsA("BasePart") and p1:IsA("BasePart") then
+			return p0, p1, a0.CFrame, a1.CFrame
+		end
+	end
+	return nil
+end
+
+-- which body part an accessory handle is stuck to: an AccessoryWeld on older rigs,
+-- a RigidConstraint on newer ones
+local function attachedTo(handle)
+	for _, d in handle:GetChildren() do
+		local other
+		if d:IsA("JointInstance") then
+			other = if d.Part0 == handle then d.Part1 else d.Part0
+		elseif d:IsA("RigidConstraint") or d:IsA("WeldConstraint") then
+			if d:IsA("WeldConstraint") then
+				other = if d.Part0 == handle then d.Part1 else d.Part0
+			else
+				local a0, a1 = d.Attachment0, d.Attachment1
+				local p0 = a0 and a0.Parent
+				local p1 = a1 and a1.Parent
+				other = if p0 == handle then p1 else p0
+			end
+		end
+		if other and other ~= handle and other:IsA("BasePart") then
+			return other
+		end
+	end
+	return nil
+end
+
 -- classic clothing is folded onto the body in the viewer. accessories become simple shapes in their
 -- texture's color: their meshes can't be downloaded without a roblox login
 local function looks(char)
@@ -36,10 +77,9 @@ local function looks(char)
 	local acc = {}
 	for _, a in char:GetChildren() do
 		local handle = a:IsA("Accessory") and a:FindFirstChild("Handle")
-		local weld = handle and handle:FindFirstChild("AccessoryWeld")
-		if weld and weld:IsA("JointInstance") and #acc < MAX_ACCESSORIES then
-			local limb = if weld.Part0 == handle then weld.Part1 else weld.Part0
-			if limb and limb.Parent == char then
+		local limb = handle and attachedTo(handle)
+		if limb and #acc < MAX_ACCESSORIES then
+			if limb.Parent == char then
 				local off = limb.CFrame:ToObjectSpace(handle.CFrame)
 				local rx, ry, rz = off:ToEulerAnglesXYZ()
 				local mesh = handle:FindFirstChildOfClass("SpecialMesh")
@@ -63,26 +103,29 @@ local function looks(char)
 	return clothes, acc
 end
 
--- every part hung off the root through Motor6Ds: 15 for R15, 6 for R6. accessories ride along on their limb
+-- every part hung off the root through its joints: 15 for R15, 6 for R6. accessories ride along on their limb
 function Rig.fromCharacter(char, root)
 	local rest = { [root] = CFrame.identity }
-	local motors = {}
+	local joints = {}
 	for _, d in char:GetDescendants() do
-		if d:IsA("Motor6D") and d.Part0 and d.Part1 and d.Part1.Parent == char then
-			table.insert(motors, d)
+		local p0, p1, c0, c1 = joint(d)
+		if p0 and p1 and p1.Parent == char then
+			table.insert(joints, { p0, p1, c0, c1 })
 		end
 	end
 	-- walk the joint tree outwards from the root, joint by joint, ignoring the animation
 	local progressed = true
 	while progressed do
 		progressed = false
-		for i = #motors, 1, -1 do
-			local m = motors[i]
-			local base = rest[m.Part0]
-			if base then
-				rest[m.Part1] = base * m.C0 * m.C1:Inverse()
-				table.remove(motors, i)
+		for i = #joints, 1, -1 do
+			local j = joints[i]
+			local base = rest[j[1]]
+			if base and not rest[j[2]] then
+				rest[j[2]] = base * j[3] * j[4]:Inverse()
+				table.remove(joints, i)
 				progressed = true
+			elseif rest[j[2]] then
+				table.remove(joints, i)
 			end
 		end
 	end
