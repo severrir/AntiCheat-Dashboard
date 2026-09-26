@@ -7,21 +7,16 @@ local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 local Net = require(ReplicatedStorage.Shared.Net)
 
--- players reporting players. a report never kicks anyone by itself: it records the last 20s of
--- the reported player as a replay, lands in their case file on the dashboard, and a reported
--- player gets the bait npc sooner. reports count more from people who've been right before
--- (the backend tracks that) and less from brand new accounts or people who look suspicious themselves.
--- the client half is ACReportController
 local ReportService = { Name = "ACReportService" }
 
-local PER_TARGET = 300 -- one report per reporter per target every 5 minutes
-local BURST = 5 -- at most this many reports per reporter...
-local BURST_WINDOW = 600 -- ...every 10 minutes
-local CAPTURE_EVERY = 60 -- one evidence replay per target per minute is plenty
+local PER_TARGET = 300
+local BURST = 5
+local BURST_WINDOW = 600
+local CAPTURE_EVERY = 60
 
 function ReportService:Init()
-	self._recent = {} -- reporter userId -> { times = {}, targets = { [targetId] = t } }
-	self._captured = {} -- target userId -> os.clock()
+	self._recent = {}
+	self._captured = {}
 	self.Send = Net.Event({ name = "ACReport", cooldown = 2 }):Expect("number", "string", "string")
 	self.State = Net.Event("ACReportState")
 end
@@ -30,11 +25,9 @@ local function allowedReason(reason)
 	return table.find(Config.ReportReasons, reason) ~= nil
 end
 
--- how much this report should count, 0..1. the backend multiplies in the reporter's track record
 function ReportService:_weight(reporter, now)
 	local w = 1
 	if reporter:Score(now) >= Config.Thresholds.KickScore * 0.5 then
-		-- cheaters love reporting whoever just beat them
 		w *= 0.25
 	end
 	if reporter.player.AccountAge < 3 then
@@ -76,14 +69,12 @@ local function filtered(text, fromUserId)
 	if text == "" then
 		return ""
 	end
-	-- staff read this outside the game, it still goes through roblox's filter like any player text
 	local ok, result = pcall(function()
 		return TextService:FilterStringAsync(text, fromUserId):GetNonChatStringForBroadcastAsync()
 	end)
 	return if ok then result else ""
 end
 
--- returns ok, message for the reporter. also what your own report ui should call
 function ReportService:Report(reporterPlayer, target, reason, note)
 	if not Config.On("Reports") then
 		return false, "Reports are switched off right now."
@@ -107,7 +98,6 @@ function ReportService:Report(reporterPlayer, target, reason, note)
 	end
 
 	local w = self:_weight(reporter, now)
-	-- a reported player gets watched harder: the bait npc shows up for them sooner
 	victim.reportWeight += w
 
 	local report = {
@@ -151,7 +141,6 @@ function ReportService:Start()
 		self.State:Fire(player, { result = { ok = ok, message = message } })
 	end)
 
-	-- "a player you reported got banned", shown when they next join
 	Framework.Get("ACBanService").JoinChecked:Connect(function(player, res)
 		local thanks = tonumber(res.thanks) or 0
 		if thanks > 0 then
@@ -173,7 +162,6 @@ function ReportService:Start()
 	Players.PlayerRemoving:Connect(function(player)
 		self._recent[player.UserId] = nil
 	end)
-	-- the button appears and disappears with the dashboard toggle
 	Config.Changed:Connect(function()
 		for _, player in Players:GetPlayers() do
 			self:_config(player)

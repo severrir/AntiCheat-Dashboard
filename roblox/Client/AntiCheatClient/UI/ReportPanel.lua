@@ -1,8 +1,6 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
--- the report button and window players see. only draws things and hands back what was picked,
--- ACReportController talks to the server
 local ReportPanel = {}
 ReportPanel.__index = ReportPanel
 
@@ -54,7 +52,6 @@ local function text(parent, value, size, color, bold, order)
 	return l
 end
 
--- onSend(targetUserId, reason, note)
 function ReportPanel.new(parent, onSend)
 	local self = setmetatable({ onSend = onSend, target = nil, reason = nil, reasons = {}, rows = {}, chips = {} }, ReportPanel)
 
@@ -65,7 +62,6 @@ function ReportPanel.new(parent, onSend)
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	self.gui = gui
 
-	-- the always-there button
 	local open = Instance.new("TextButton")
 	open.Name = "Open"
 	open.AnchorPoint = Vector2.new(0, 1)
@@ -78,7 +74,6 @@ function ReportPanel.new(parent, onSend)
 	open.TextColor3 = WHITE
 	open.Text = "Report"
 	open.AutoButtonColor = true
-	-- hidden until the server says reports are on
 	open.Visible = false
 	corner(open, 16)
 	stroke(open)
@@ -88,12 +83,10 @@ function ReportPanel.new(parent, onSend)
 	end)
 	self.button = open
 
-	-- the window
 	local window = Instance.new("Frame")
 	window.Name = "Window"
 	window.AnchorPoint = Vector2.new(0.5, 0.5)
 	window.Position = UDim2.fromScale(0.5, 0.5)
-	-- 92% of a phone screen, 340 wide on anything bigger
 	window.Size = UDim2.new(0.92, 0, 0, 470)
 	window.BackgroundColor3 = BG
 	window.Visible = false
@@ -210,7 +203,6 @@ function ReportPanel.new(parent, onSend)
 
 	self.status = text(window, "", 12, MUTED, false, 8)
 
-	-- small messages at the top of the screen: "thanks", "a player you reported was banned"
 	local toast = Instance.new("TextLabel")
 	toast.AnchorPoint = Vector2.new(0.5, 0)
 	toast.Position = UDim2.new(0.5, 0, 0, -60)
@@ -283,7 +275,6 @@ function ReportPanel:SetReasons(reasons)
 	self:_paint()
 end
 
--- rebuilds the player list, keeps the pick if they're still here
 function ReportPanel:_refresh()
 	for _, row in self.rows do
 		row:Destroy()
@@ -372,7 +363,6 @@ function ReportPanel:Validate()
 	self.send.BackgroundTransparency = if ready then 0 else 0.6
 end
 
--- the server answered
 function ReportPanel:Result(ok, message)
 	self.busy = false
 	self.send.Text = "Send report"

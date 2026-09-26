@@ -1,5 +1,3 @@
--- the admin spectator panel. only draws things and reports clicks,
--- ACSpectatorController decides what they mean
 local SpectatorPanel = {}
 SpectatorPanel.__index = SpectatorPanel
 
@@ -54,7 +52,6 @@ local function button(parent, text, color, onClick)
 	return b
 end
 
--- onAction(action, targetId) gets called for every button press
 function SpectatorPanel.new(parent, onAction)
 	local self = setmetatable({ onAction = onAction }, SpectatorPanel)
 
@@ -162,7 +159,6 @@ function SpectatorPanel:SetOpen(open)
 	self.gui.Enabled = open
 end
 
--- state = { active, target, kick, list = { {id, name, score, top} }, note }
 function SpectatorPanel:Render(state)
 	local kick = math.max(state.kick or 100, 1)
 	local current

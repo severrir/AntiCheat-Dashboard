@@ -1,21 +1,12 @@
 import * as THREE from 'three'
 import type { MapData, MapPart, Sky, Terrain } from '../lib/supabase'
 
-// the place, rebuilt from what the game exported: parts in their real shape, color, material and
-// transparency, terrain from a heightmap in the place's own terrain colors, and the sky at the
-// time of day the server was running
-
-// roblox wedge: slopes down toward the front (-Z), tall at the back
 function wedgeGeometry() {
   const g = new THREE.BufferGeometry()
   const v = [
-    // bottom
     -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5,
-    // back
     -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
-    // slope
     -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5,
-    // sides
     -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5,
   ]
   g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
@@ -23,7 +14,6 @@ function wedgeGeometry() {
   return g
 }
 
-// roblox corner wedge: a pyramid with its peak over the front right corner (+X, -Z)
 function cornerWedgeGeometry() {
   const a = [-0.5, -0.5, -0.5], b = [0.5, -0.5, -0.5], c = [0.5, -0.5, 0.5], d = [-0.5, -0.5, 0.5], p = [0.5, 0.5, -0.5]
   const tris = [a, b, c, a, c, d, b, p, c, a, p, b, c, p, d, d, p, a]
@@ -33,16 +23,15 @@ function cornerWedgeGeometry() {
   return g
 }
 
-// material code from the game -> how it looks here
 function surface(code: number) {
   switch (code) {
-    case 1: return { roughness: 1, metalness: 0, emissive: true } // neon
-    case 2: return { roughness: 0.05, metalness: 0.1, opacity: 0.35 } // glass
-    case 3: return { roughness: 0.8, metalness: 0 } // wood
-    case 4: return { roughness: 0.35, metalness: 0.7 } // metal
-    case 9: return { roughness: 0.15, metalness: 0, opacity: 0.85 } // ice
-    case 10: return { roughness: 1, metalness: 0, opacity: 0.3, emissive: true } // forcefield
-    case 12: return { roughness: 0.35, metalness: 0 } // smooth plastic
+    case 1: return { roughness: 1, metalness: 0, emissive: true }
+    case 2: return { roughness: 0.05, metalness: 0.1, opacity: 0.35 }
+    case 3: return { roughness: 0.8, metalness: 0 }
+    case 4: return { roughness: 0.35, metalness: 0.7 }
+    case 9: return { roughness: 0.15, metalness: 0, opacity: 0.85 }
+    case 10: return { roughness: 1, metalness: 0, opacity: 0.3, emissive: true }
+    case 12: return { roughness: 0.35, metalness: 0 }
     case 5: case 6: case 7: case 8: case 11: return { roughness: 0.95, metalness: 0 }
     default: return { roughness: 0.7, metalness: 0 }
   }
@@ -58,7 +47,6 @@ export function buildWorld(scene: THREE.Scene, map: MapData | null, center: THRE
   scene.background = sky.horizon.clone()
   scene.fog = new THREE.Fog(sky.fog, sky.fogNear, sky.fogFar)
 
-  // gradient dome, follows nothing: it's big enough
   const dome = new THREE.Mesh(
     track(new THREE.SphereGeometry(2500, 32, 16)),
     track(
@@ -94,7 +82,6 @@ export function buildWorld(scene: THREE.Scene, map: MapData | null, center: THRE
   buildParts(scene, parts, track)
   if (map?.terrain) buildTerrain(scene, map.terrain, track)
 
-  // nothing exported yet: a floor so the replay isn't floating in space
   if (parts.length === 0 && !map?.terrain) {
     const floor = new THREE.Mesh(
       track(new THREE.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2)),
@@ -122,12 +109,11 @@ function buildParts(scene: THREE.Scene, parts: MapPart[], track: <T extends { di
     6: track(new THREE.BoxGeometry(1, 1, 1)),
   }
 
-  // one instanced mesh per shape + material + transparency step
   const groups = new Map<string, MapPart[]>()
   for (const p of parts) {
     const shape = p[10] in shapes ? p[10] : 0
     const mat = p.length > 11 ? p[11] : 0
-    const alpha = p.length > 12 ? Math.round(p[12] / 25) * 25 : 0 // 0, 25, 50, 75
+    const alpha = p.length > 12 ? Math.round(p[12] / 25) * 25 : 0
     const key = `${shape}|${mat}|${shape === 6 ? 50 : alpha}`
     let list = groups.get(key)
     if (!list) groups.set(key, (list = []))
@@ -141,7 +127,6 @@ function buildParts(scene: THREE.Scene, parts: MapPart[], track: <T extends { di
     const look = surface(matCode)
     const opacity = Math.min(look.opacity ?? 1, 1 - alpha / 100)
     const see = { transparent: opacity < 0.99, opacity, depthWrite: opacity >= 0.99 }
-    // neon ignores lighting and shows its own color at full strength, like in game
     const material = track(
       look.emissive
         ? new THREE.MeshBasicMaterial({ ...see, toneMapped: false })
@@ -153,7 +138,6 @@ function buildParts(scene: THREE.Scene, parts: MapPart[], track: <T extends { di
       q.setFromEuler(e)
       m.compose(pos.set(p[0], p[1], p[2]), q, scale.set(p[3], p[4], p[5]))
       mesh.setMatrixAt(i, m)
-      // setHex takes srgb, three converts to its linear working space itself
       color.setHex(p[9])
       mesh.setColorAt(i, color)
     })
@@ -233,7 +217,6 @@ function buildTerrain(scene: THREE.Scene, t: Terrain, track: <T extends { dispos
   }
 }
 
-// roblox lighting -> sky colors, sun and fog
 function skyLook(sky: Sky | null) {
   const sunDir = new THREE.Vector3(...(sky?.sun ?? [0.45, 0.75, 0.3])).normalize()
   const day = THREE.MathUtils.clamp(sunDir.y * 3 + 0.35, 0, 1)
@@ -248,7 +231,6 @@ function skyLook(sky: Sky | null) {
   const fog = sky?.fogEnd && sky.fogEnd < 5000 && sky.fog != null ? new THREE.Color(sky.fog) : horizon.clone()
   const brightness = sky?.brightness ?? 2
 
-  // below the horizon the "sun" is the moon: dim and blue, from the other side
   const lightDir = sunDir.y > -0.05 ? sunDir.clone() : sunDir.clone().negate()
   return {
     top,

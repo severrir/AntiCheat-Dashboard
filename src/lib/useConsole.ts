@@ -16,7 +16,6 @@ const FEED_LIMIT = 300
 
 export type Counts = { flags24: number; kicks24: number }
 
-// loads everything for one game and keeps it live through realtime
 export function useConsole(enabled: boolean, game: number) {
   const [players, setPlayers] = useState<Player[]>([])
   const [flags, setFlags] = useState<Flag[]>([])
@@ -113,7 +112,6 @@ export function useConsole(enabled: boolean, game: number) {
       })
       .subscribe((status) => setLive(status === 'SUBSCRIBED'))
 
-    // counts, and anything realtime might have missed
     const timer = setInterval(loadCounts, 60_000)
     return () => {
       clearInterval(timer)

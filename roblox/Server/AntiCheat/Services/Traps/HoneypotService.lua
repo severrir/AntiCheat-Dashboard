@@ -6,9 +6,6 @@ local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 local Net = require(ReplicatedStorage.Shared.Net)
 
--- bait remotes and fake secret values. nothing real ever touches them, only exploit tools poking
--- around. they're made with Net like every real remote, so they sit in the same folder, names
--- shuffled every server. every other trap (vault, bait npc, bait coin) trips through here too
 local HoneypotService = { Name = "ACHoneypotService" }
 
 local EVENT_NAMES = {
@@ -50,7 +47,6 @@ function HoneypotService:Init()
 	self._lastTrip = {}
 end
 
--- one hit from any trap is proof on its own
 function HoneypotService:Trip(target, kind)
 	local profile = if typeof(target) == "Instance" then self._players:Get(target) else target
 	if not profile then
@@ -65,7 +61,6 @@ function HoneypotService:Trip(target, kind)
 	self._trust:Flag(profile, "Honeypot", 150, { kind = kind })
 end
 
--- NetGuardService runs every string any Net remote receives through here
 function HoneypotService:Scan(player, text)
 	if not Config.On("Honeypot") then
 		return false
@@ -95,13 +90,11 @@ function HoneypotService:_plantRemotes()
 			if Config.On("Honeypot") then
 				self:Trip(player, "Function:" .. remoteName)
 			end
-			-- hand back a canary, if they ever send it anywhere they're done
 			return self._canaries[1]
 		end)
 	end
 end
 
--- fake secrets. anyone who reads one and sends it back through any remote gets caught
 function HoneypotService:_plantCanaries()
 	for _, name in pick(VALUE_NAMES, 2) do
 		local token = string.sub(string.gsub(HttpService:GenerateGUID(false), "-", ""), 1, 20)

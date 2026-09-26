@@ -5,10 +5,8 @@ local Config = require(AC.Settings.Config)
 local Recording = require(AC.Classes.Player.Recording)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- turns the last 20s of a player's history into a Recording the dashboard can play back in 3D
 local RecorderService = { Name = "ACRecorderService" }
 
--- synchronous on purpose: grab everything before the player object goes away
 function RecorderService:Capture(profile, kind, reason)
 	return Recording.capture(profile, kind, reason, {
 		server = self._backend.ServerId,
@@ -17,7 +15,6 @@ function RecorderService:Capture(profile, kind, reason)
 	})
 end
 
--- yields. returns the replay id or nil
 function RecorderService:Upload(recording)
 	if not recording then
 		return nil

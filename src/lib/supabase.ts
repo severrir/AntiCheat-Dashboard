@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-// publishable key is meant to be public. row level security is what actually protects the data
 export const SUPABASE_URL = 'https://kapvjoemzsdqiealluzl.supabase.co'
 export const supabase = createClient(SUPABASE_URL, 'sb_publishable_2LUd8xlwuO7uvs6l8pwO4Q__-OyVtrr', {
   auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true },
@@ -126,7 +125,6 @@ export type Replay = {
   created_at: string
 }
 
-// the avatar as the game server saw it. poses are 6 numbers (offset from root + XYZ euler) per part
 export type RigPart = { n: string; s: [number, number, number]; r: number[]; c: number }
 export type RigAccessory = { l: string; s: [number, number, number]; o: number[]; c: number; t: number | null; w: boolean }
 export type Rig = {
@@ -213,7 +211,6 @@ export type Revert = {
 
 export type GameStaff = { game_id: number; user_id: string }
 
-// [x, y, z, sx, sy, sz, rx, ry, rz, color, shape]
 export type MapPart = number[]
 
 export async function loadMap(placeId: number | null, version?: string | null) {
@@ -230,7 +227,6 @@ export async function loadMap(placeId: number | null, version?: string | null) {
       : Promise.resolve({ data: [] as { start: number; data: { h: number[]; w: number[]; m: number[] } }[] }),
   ])
 
-  // stitch the heightmap back together from its chunks
   let terrain: Terrain | null = null
   if (map.terrain && rows && rows.length > 0) {
     const meta = map.terrain as Omit<Terrain, 'h' | 'w' | 'm'>

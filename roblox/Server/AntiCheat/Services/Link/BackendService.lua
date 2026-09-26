@@ -10,10 +10,9 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local B = Config.Backend
 
--- the only thing that talks to supabase. batches flags, syncs every 20s, hands out what comes back
 local BackendService = {
 	Name = "ACBackendService",
-	Synced = Signal.new(), -- (response)
+	Synced = Signal.new(),
 	Online = false,
 	ServerId = if game.JobId ~= "" then game.JobId else "studio-" .. HttpService:GenerateGUID(false),
 }
@@ -28,8 +27,6 @@ function BackendService:Init()
 	self._syncing = false
 	self._inflight = 0
 
-	-- the experience secret store in live servers, the server-only module in studio
-	-- (studio has no secrets and its debugger pauses on the error even inside pcall)
 	if not RunService:IsStudio() then
 		local ok, secret = pcall(HttpService.GetSecret, HttpService, B.SecretName)
 		if ok then
@@ -42,7 +39,6 @@ function BackendService:Init()
 	end
 end
 
--- yields. nil on any failure
 function BackendService:Post(body)
 	if not self._key then
 		return nil
@@ -63,8 +59,6 @@ function BackendService:Post(body)
 	return if decoded then data else nil
 end
 
--- runs fn in its own thread and keeps the server alive for it on shutdown. kick uploads go
--- through here, otherwise kicking the last player closes the server before the kick is sent
 function BackendService:Track(fn)
 	self._inflight += 1
 	task.spawn(function()
@@ -126,7 +120,6 @@ function BackendService:_snapshot(profile, now)
 	}
 end
 
--- returns false only when the request actually failed
 function BackendService:Sync()
 	if self._syncing then
 		return true
@@ -204,7 +197,6 @@ function BackendService:Start()
 	end)
 
 	game:BindToClose(function()
-		-- studio stop shouldn't hang for long
 		local deadline = os.clock() + (if RunService:IsStudio() then 5 else 25)
 		while (self._inflight > 0 or self._syncing) and os.clock() < deadline do
 			task.wait(0.1)

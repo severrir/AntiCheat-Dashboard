@@ -6,9 +6,6 @@ local Check = require(AC.Classes.Core.Check)
 local BaitDummy = require(AC.Classes.Traps.BaitDummy)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- invisible dummies parked right next to players who are already looking suspicious.
--- kill aura and silent aim pick the nearest humanoid and send it straight to your hit remote,
--- so CombatService:ValidateHit sees them target something nobody can see
 local BaitNpcService = Check.extend({
 	Name = "ACBaitNpcService",
 	Category = "Honeypot",
@@ -16,11 +13,11 @@ local BaitNpcService = Check.extend({
 	Rate = "cold",
 })
 
-local SUSPECT = 0.25 -- share of the kick score before a player gets a bait
+local SUSPECT = 0.25
 
 function BaitNpcService:Init()
-	self._byProfile = {} -- profile -> BaitDummy
-	self._byModel = {} -- model -> BaitDummy
+	self._byProfile = {}
+	self._byModel = {}
 end
 
 function BaitNpcService:IsBait(model)
@@ -44,7 +41,6 @@ end
 
 function BaitNpcService:Step(profile, now)
 	local root = profile.root
-	-- players reported by others count as suspicious too, a real report or two is enough
 	local suspicious = profile:Score(now) >= Config.Thresholds.KickScore * SUSPECT or profile.reportWeight >= 1
 	if profile.immune or not suspicious or not root or not root.Parent then
 		self:_release(profile)

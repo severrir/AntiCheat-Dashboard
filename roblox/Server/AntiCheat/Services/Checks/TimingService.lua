@@ -5,8 +5,6 @@ local RingBuffer = require(AC.Classes.Core.RingBuffer)
 
 local T = Config.Thresholds
 
--- humans are messy. a macro firing a remote every 100ms on the dot is not.
--- looks at the gaps between calls to each Net remote and flags when they're way too even
 local TimingService = Check.extend({
 	Name = "ACTimingService",
 	Category = "Timing",
@@ -19,7 +17,6 @@ local MIN_SAMPLES = 40
 local MIN_RATE = 5
 local MAX_KEYS = 64
 
--- NetGuardService calls this for every remote call that got through
 function TimingService:Record(profile, key, now)
 	local entry = profile.timing[key]
 	if not entry then
@@ -32,7 +29,6 @@ function TimingService:Record(profile, key, now)
 	end
 	local gap = now - entry.last
 	entry.last = now
-	-- a long pause isn't part of the same burst
 	if gap > 1 then
 		entry.gaps:Clear()
 		return

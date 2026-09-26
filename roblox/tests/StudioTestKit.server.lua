@@ -1,19 +1,3 @@
---[[
-	studio-only test commands for the anticheat. drop this Script in ServerScriptService,
-	press Play, and type these in chat:
-
-	/acstate            your score, shadow state and coins
-	/acshadow           put yourself in shadow mode (like staff would)
-	/acunshadow         lift it
-	/acgrant 100        try to earn 100 Gems through AntiCheat.Grant (0 while shadowed)
-	/accoins 50         add 50 to leaderstats Coins (recorded for undo)
-	/achit              hit a test dummy through ValidateHit (fails while shadowed)
-	/acreport           a fake player reports you for Flying (play solo only has one player)
-	/acreplay           save a replay of your last 20 seconds, then open it from your player page
-
-	does nothing in live servers. delete it before publishing if you like
-]]
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
@@ -27,7 +11,6 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 local Net = require(ReplicatedStorage.Shared.Net)
 local API = require(game.ServerScriptService.AntiCheat.API)
 
--- reuses the report toast so answers show up on screen, not just in Output
 local toast = Net.Event("ACReportState")
 
 local function say(player, text)

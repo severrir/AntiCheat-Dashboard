@@ -1,8 +1,6 @@
 import { barsPng } from "../_shared/draw.ts";
 import { db, DASHBOARD, fromDatabase, gameSecret, json } from "../_shared/util.ts";
 
-// daily report to discord, fired by pg_cron at 10:00 tbilisi
-
 const COLORS: Record<string, string> = {
   Movement: "#22d3ee", Character: "#a78bfa", Remote: "#fbbf24", Statistical: "#34d399",
   Timing: "#fb923c", Honeypot: "#f43f5e", Client: "#60a5fa", Combat: "#f472b6", Custom: "#94a3b8",
@@ -23,7 +21,6 @@ async function reportFor(game: { id: number; name: string }, webhook: string, mu
   const flagged = new Set<number>();
   for (const f of flags.data ?? []) {
     byCheck.set(f.check_name, (byCheck.get(f.check_name) ?? 0) + f.hits);
-    // tbilisi is utc+4
     byHour[(new Date(f.created_at).getUTCHours() + 4) % 24] += f.hits;
     flagged.add(f.user_id);
   }
@@ -72,7 +69,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "method" });
   if (!(await fromDatabase(req))) return json(401, { error: "auth" });
 
-  // one report per game, each to that game's own webhook
   const { data: games } = await db.from("games").select("id, name").order("id");
   const sent: Record<string, boolean> = {};
   for (const g of games ?? []) {

@@ -29,7 +29,6 @@ export function MissionControl({ servers, players, kick, open }: Props) {
   const [mode, setMode] = useState<'live' | 'heat'>('live')
   const [heatDays, setHeatDays] = useState(7)
 
-  // private broadcast channel, the server only lets approved admins subscribe
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
     let cancelled = false
@@ -113,7 +112,7 @@ export function MissionControl({ servers, players, kick, open }: Props) {
                 onClick={() => setMode(m)}
                 className={`rounded-md px-2.5 py-1 text-xs ${mode === m ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'}`}
               >
-                {m === 'live' ? 'Live radar' : 'Heatmap'}
+                {m === 'live' ? 'Live' : 'Heatmap'}
               </button>
             ))}
             {mode === 'heat' && (
@@ -169,7 +168,6 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       )
   }, [heat, placeId])
 
-  // remember where everyone was, so the dots glide to the new spot instead of jumping
   const lastPulse = useRef<Pulse | undefined>(undefined)
   if (pulse !== lastPulse.current) {
     if (lastPulse.current) {
@@ -225,7 +223,6 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       ctx.fillStyle = '#07090d'
       ctx.fillRect(0, 0, w, h)
 
-      // radar rings
       ctx.strokeStyle = 'rgba(34,211,238,0.06)'
       for (let r = 80; r < Math.max(w, h); r += 80) {
         ctx.beginPath()
@@ -272,7 +269,6 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
           const ratio = p.score / Math.max(kick, 1)
           const col = p.admin ? '#a78bfa' : ratio >= 1 ? '#f43f5e' : ratio >= 0.5 ? '#fbbf24' : ratio > 0.05 ? '#22d3ee' : '#34d399'
           if (ratio >= 0.5) {
-            // suspects pulse
             const phase = (now / 900) % 1
             ctx.strokeStyle = col
             ctx.globalAlpha = 1 - phase

@@ -1,5 +1,3 @@
-// draws PNGs for discord: a top-down map of a replay, and the daily report chart.
-// svg -> png with resvg (wasm), no browser needed
 import { initWasm, Resvg } from "npm:@resvg/resvg-wasm@2.6.2";
 import type { ReplayEvent, Sample } from "./caseFile.ts";
 
@@ -10,11 +8,10 @@ async function init() {
   if (!ready) {
     ready = (async () => {
       await initWasm(fetch("https://cdn.jsdelivr.net/npm/@resvg/resvg-wasm@2.6.2/index_bg.wasm"));
-      // text is optional, if the font can't be fetched the images just go without labels
       try {
         const res = await fetch("https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/Roboto%5Bwdth,wght%5D.ttf");
         if (res.ok) font = new Uint8Array(await res.arrayBuffer());
-      } catch { /* ignore */ }
+      } catch
     })();
   }
   await ready;
@@ -26,7 +23,6 @@ async function toPng(svg: string, width: number) {
     fitTo: { mode: "width", value: width },
     font: font ? { fontBuffers: [font], defaultFontFamily: "Roboto", loadSystemFonts: false } : { loadSystemFonts: false },
   });
-  // copy into a plain ArrayBuffer so Response/Blob accept it
   return new Uint8Array(resvg.render().asPng());
 }
 
@@ -39,7 +35,6 @@ function shade(color: number, amount: number) {
   return `rgb(${mix(r, 7)},${mix(g, 9)},${mix(b, 13)})`;
 }
 
-// parts: [x, y, z, sx, sy, sz, rx, ry, rz, color, shape]
 export async function replayPng(samples: Sample[], events: ReplayEvent[], parts: number[][], title: string) {
   const W = 800, H = 500;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -51,7 +46,6 @@ export async function replayPng(samples: Sample[], events: ReplayEvent[], parts:
   const pad = 30;
   let spanX = Math.max(maxX - minX + pad * 2, 80);
   let spanZ = Math.max(maxZ - minZ + pad * 2, 50);
-  // keep the aspect ratio of the image
   if (spanX / spanZ > W / H) spanZ = spanX * H / W; else spanX = spanZ * W / H;
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
   const scale = W / spanX;
@@ -62,7 +56,6 @@ export async function replayPng(samples: Sample[], events: ReplayEvent[], parts:
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`);
   out.push(`<rect width="${W}" height="${H}" fill="${BG}"/>`);
 
-  // map, lower parts first so roofs and platforms sit on top
   const visible = parts
     .filter((p) => {
       const r = Math.max(p[3], p[5]) / 2;
@@ -82,13 +75,11 @@ export async function replayPng(samples: Sample[], events: ReplayEvent[], parts:
     }
   }
 
-  // path: cyan normally, red around the moments something fired
   const hot = events.map((e) => e[0]);
   const isHot = (t: number) => hot.some((h) => Math.abs(h - t) < 0.35);
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1], b = samples[i];
     if (b[5] === 1) {
-      // our own snapback, dashed
       out.push(`<line x1="${sx(a[1]).toFixed(1)}" y1="${sy(a[3]).toFixed(1)}" x2="${sx(b[1]).toFixed(1)}" y2="${sy(b[3]).toFixed(1)}" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>`);
       out.push(`<circle cx="${sx(b[1]).toFixed(1)}" cy="${sy(b[3]).toFixed(1)}" r="4" fill="none" stroke="#fbbf24" stroke-width="1.5"/>`);
       continue;

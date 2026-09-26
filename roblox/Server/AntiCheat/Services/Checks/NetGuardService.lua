@@ -7,9 +7,6 @@ local Net = require(ReplicatedStorage.Shared.Net)
 
 local T = Config.Thresholds
 
--- plugs into Net.Middleware / Net.OnReject so every remote in the game is watched without
--- touching game code: spam past the cooldown, wrong argument types, macro timing,
--- honeypot tokens sent back
 local NetGuardService = { Name = "ACNetGuardService" }
 
 local SPAM_PER_SECOND = 10
@@ -66,7 +63,6 @@ function NetGuardService:_onReject(player, name, reason)
 		self._trust:Flag(profile, "Remote", 5, { kind = "BadArgs", remote = name })
 		return
 	end
-	-- a few calls inside the cooldown is just someone clicking fast. a flood isn't
 	local now = os.clock()
 	local r = profile.rejects
 	if now - r.at > 1 then
@@ -85,7 +81,6 @@ function NetGuardService:Start()
 	self._timing = Framework.Get("ACTimingService")
 	self._honeypot = Framework.Get("ACHoneypotService")
 
-	-- your game might already use the hooks, chain onto them instead of replacing
 	local prevMiddleware, prevReject = Net.Middleware, Net.OnReject
 	if prevMiddleware or prevReject then
 		warn("[AntiCheat] Net hooks were already set, NetGuard is chaining onto them")

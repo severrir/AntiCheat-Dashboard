@@ -1,7 +1,6 @@
 local AC = script:FindFirstAncestor("AntiCheat")
 local Check = require(AC.Classes.Core.Check)
 
--- humanoid deleted or swapped, health above max, root resized, limbs gone
 local CharacterService = Check.extend({
 	Name = "ACCharacterService",
 	Category = "Character",
@@ -19,7 +18,6 @@ local function countParts(char)
 	return parts
 end
 
--- the character is in a state we can't trust anymore, give them a fresh one
 local function respawn(profile)
 	profile:UnbindCharacter()
 	task.defer(function()
@@ -38,7 +36,6 @@ function CharacterService:Step(profile, now)
 		return
 	end
 
-	-- deleting or swapping the humanoid is the classic godmode
 	if hum.Parent ~= char then
 		if char:FindFirstChildOfClass("Humanoid") or hum.Health > 0 then
 			self:Flag(profile, 35, { kind = "HumanoidSwap" })
@@ -62,7 +59,6 @@ function CharacterService:Step(profile, now)
 		return
 	end
 
-	-- avatar loading scales the root and swaps limbs, so wait before taking a baseline
 	if not profile.partCount then
 		if now - (profile.boundAt or now) < 5 then
 			return
@@ -79,7 +75,6 @@ function CharacterService:Step(profile, now)
 		return
 	end
 
-	-- GetChildren isn't free, every couple of seconds is plenty
 	if now - profile.lastLimbCheck > 2 then
 		profile.lastLimbCheck = now
 		local parts = countParts(char)

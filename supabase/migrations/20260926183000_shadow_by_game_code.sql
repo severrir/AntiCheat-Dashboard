@@ -1,4 +1,3 @@
--- a shadow set from game code (AntiCheat.Shadow) is a staff shadow, not the score's
 create or replace function public.game_ingest(p_game integer, p jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -69,13 +68,11 @@ begin
   from (select user_id, count(*)::int n from k group by user_id) c
   where pl.game_id = g and pl.user_id = c.user_id;
 
-  -- the server shadowed someone on its own
   with s as (
     select (x ->> 'id')::bigint uid, (x ->> 'on')::boolean on_, left(coalesce(x ->> 'why', ''), 120) why,
            x ->> 'by' = 'staff' staff
     from jsonb_array_elements(coalesce(p -> 'shadow', '[]'::jsonb)) x
   ), upd as (
-    -- game code shadowing someone counts as staff: no auto-kick, and it stays that way on rejoin
     update public.players pl set shadowed = s.on_,
       shadow_by = case when s.on_ then case when s.staff then 'game code' else 'anticheat' end end,
       shadowed_at = case when s.on_ then now() end
@@ -85,7 +82,6 @@ begin
   insert into public.actions (game_id, user_id, action, reason, actor)
   select g, user_id, case when on_ then 'shadow' else 'unshadow' end, why, 'anticheat' from upd;
 
-  -- reports: weighted by how often this reporter has been right before
   with rep as (
     select (x ->> 'target')::bigint target, (x ->> 'reporter')::bigint reporter,
            left(x ->> 'reason', 24) reason, left(coalesce(x ->> 'note', ''), 200) note,
@@ -95,7 +91,6 @@ begin
   ), ok as (
     select rep.* from rep
     where rep.target <> rep.reporter
-      -- nobody gets more than 20 reports a day into the system
       and (select count(*) from public.reports r2
            where r2.game_id = g and r2.reporter_id = rep.reporter and r2.created_at > now() - interval '1 day') < 20
   ), ins as (
@@ -109,7 +104,6 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_array(target_id, reporter_id)), '[]'::jsonb) into new_reports from ins;
 
-  -- two statements, a player can be both reported and reporter in the same batch
   update public.players pl set reports_against = pl.reports_against + c.n
   from (select (x ->> 0)::bigint uid, count(*)::int n from jsonb_array_elements(new_reports) x group by 1) c
   where pl.game_id = g and pl.user_id = c.uid;
@@ -172,7 +166,6 @@ begin
     limit 500
   ) b;
 
-  -- undo jobs go to whichever server asks first. a server that died mid-job gets it retried after 2 minutes
   with picked as (
     update public.reverts rv set status = 'sent', sent_at = now()
     where rv.id in (

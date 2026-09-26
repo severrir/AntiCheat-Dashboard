@@ -2,13 +2,10 @@ local Signal = require(script:FindFirstAncestor("AntiCheat").Classes.Core.Signal
 
 local Config = {}
 
--- these people skip every check and can use spectator mode
 Config.Admins = {
 	[5647285586] = true,
 }
 
--- in studio admins get checked like everyone else, so play solo actually tests something.
--- live servers always leave admins alone
 Config.CheckAdminsInStudio = true
 
 Config.Backend = {
@@ -20,7 +17,6 @@ Config.Backend = {
 	MaxQueue = 400,
 }
 
--- every feature can be switched on/off live from the dashboard
 Config.Features = {
 	Movement = true,
 	Character = true,
@@ -46,7 +42,6 @@ Config.Features = {
 	RevertGains = true,
 }
 
--- tuned live from the dashboard too
 Config.Thresholds = {
 	KickScore = 100,
 	HalfLife = 45,
@@ -62,7 +57,6 @@ Config.Thresholds = {
 	TimingMinCV = 0.035,
 	AccuracyCap = 0.92,
 
-	-- from this score on a suspect is shadowed: still playing, but harmless, until the kick or a human decides
 	ShadowScore = 60,
 
 	WeightMovement = 1,
@@ -75,7 +69,6 @@ Config.Thresholds = {
 	WeightCombat = 1,
 }
 
--- proof on their own, no second check needed before kicking
 Config.Definitive = {
 	Honeypot = true,
 }
@@ -87,25 +80,18 @@ Config.AppealUrl = "https://severrir.github.io/AntiCheat-Dashboard/#/appeal"
 Config.HotRate = 10
 Config.ColdRate = 0.5
 Config.HistorySeconds = 20
--- record every limb 10x a second so replays play the real animation on the real avatar.
--- about 100 KB per replay, turn off if bandwidth matters more
 Config.RecordPoses = true
 
--- trap vault: the auto one sits far away from everything. parts named ACVault in workspace become extra vaults
 Config.Vault = {
 	Position = Vector3.new(6000, 400, -6000),
 	Size = Vector3.new(40, 30, 40),
 }
 
--- the report button players see. turn it off if your game has its own report ui and calls AntiCheat.Report
 Config.ReportButton = true
 Config.ReportReasons = { "Flying", "Speed", "Teleporting", "Aimbot", "Kill aura", "Exploiting", "Other" }
 
--- record rises in leaderstats automatically, so banning someone can undo them.
--- turn it off if your game calls AntiCheat.Grant itself, or gains get counted twice
 Config.AutoLeaderstats = true
 
--- carried over trust fades by half every this many hours away
 Config.CarryHalfLifeHours = 6
 
 Config.Changed = Signal.new()
@@ -124,7 +110,6 @@ local function merge(target, base, incoming, isValid)
 	end
 end
 
--- start from defaults every time so removing a value on the site really resets it
 function Config.ApplyRemote(remote)
 	if type(remote) ~= "table" or type(remote.version) ~= "number" or remote.version == appliedVersion then
 		return

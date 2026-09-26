@@ -1,12 +1,8 @@
--- generates realistic movement sessions: legit play full of the stuff that fools naive anticheats
--- (lag spikes, server hitches, stairs, jumps, ledges, moving platforms, ladders, sprinting)
--- and cheat sessions of every kind the movement check handles. deterministic per seed.
-
 local Sessions = {}
 
 local GRAVITY = 196.2
-local HIP = 3 -- root height above the ground
-local FLY_REACH = 12 + 2 + 3 -- how far down the server looks for ground
+local HIP = 3
+local FLY_REACH = 12 + 2 + 3
 local WALL_Z = 300
 
 local function rng(seed)
@@ -24,16 +20,15 @@ local function rng(seed)
 	end
 end
 
--- the little world everyone runs around in
 local function groundAt(x, z)
 	if x > 100 and x < 160 then
-		return 15 - math.abs(x - 130) * 0.5 -- a hill: up 15 studs and back down
+		return 15 - math.abs(x - 130) * 0.5
 	elseif x > 220 and x <= 260 then
-		return -(x - 220) -- steep ramp down into the valley
+		return -(x - 220)
 	elseif x > 260 and x <= 262 then
 		return -40
 	elseif x > 262 then
-		return -80 -- a pit you can only fall into
+		return -80
 	end
 	return 0
 end
@@ -42,7 +37,6 @@ local function onPlatform(x, z)
 	return x < -100 and x > -150
 end
 
--- a solid wall across z = 300, the only way past it is noclip
 local function wall(ax, ay, az, bx, by, bz)
 	if (az < WALL_Z) ~= (bz < WALL_Z) and math.min(ay, by) < 40 then
 		return true, "Wall"
@@ -50,15 +44,6 @@ local function wall(ax, ay, az, bx, by, bz)
 	return false
 end
 
---[[
-	behaviour knobs for one session:
-		speedMul     cheat speed multiplier
-		blink        stand still then burst
-		teleportEvery / teleportDist
-		flyFrom      seconds in, start hovering
-		superJump    jump launch speed
-		noclip       walk through the wall
-]]
 local function simulate(seed, knobs)
 	local rand = rng(seed)
 	local duration = knobs.duration or 60
@@ -87,18 +72,18 @@ local function simulate(seed, knobs)
 			return
 		end
 		if x > 262 then
-			tx, tz = rand(266, 300), rand(-100, 100) -- fell in the pit, wander around down there
+			tx, tz = rand(266, 300), rand(-100, 100)
 			return
 		end
 		local roll = rand()
 		if roll < 0.2 then
-			tx, tz = rand(110, 150), rand(-40, 40) -- over the hill
+			tx, tz = rand(110, 150), rand(-40, 40)
 		elseif roll < 0.27 then
-			tx, tz = rand(230, 258), rand(-40, 40) -- down the ramp
+			tx, tz = rand(230, 258), rand(-40, 40)
 		elseif roll < 0.3 then
-			tx, tz = rand(266, 290), rand(-40, 40) -- walk off the edge into the pit
+			tx, tz = rand(266, 290), rand(-40, 40)
 		elseif roll < 0.4 then
-			tx, tz = rand(-145, -105), rand(-100, 100) -- onto the moving platform
+			tx, tz = rand(-145, -105), rand(-100, 100)
 		else
 			tx, tz = rand(-90, 90), rand(-150, 250)
 		end
@@ -108,7 +93,6 @@ local function simulate(seed, knobs)
 	while t < duration do
 		t += dt
 
-		-- sprint toggles are server-set WalkSpeed changes, the model sees them in the sample
 		if rand() < 0.002 then
 			walk = if walk == 16 then 24 else 16
 		end
@@ -122,7 +106,6 @@ local function simulate(seed, knobs)
 			speed = if phase < 1 then 0 else walk * 4
 		end
 
-		-- ladder: now and then climb straight up
 		if not climbing and not knobs.flyFrom and grounded and rand() < 0.0015 then
 			climbing = true
 			climbTop = y + rand(10, 25)
@@ -183,7 +166,6 @@ local function simulate(seed, knobs)
 			nextTeleport = t + knobs.teleportEvery
 		end
 
-		-- client lag: the server sees nothing new for a while, then everything at once
 		if not knobs.noLag and t > freezeUntil and rand() < 0.0015 * (knobs.lagMul or 1) then
 			freezeUntil = t + rand(0.2, 1.1)
 			frozen = { x = x, y = y, z = z, grounded = true }
@@ -201,7 +183,6 @@ local function simulate(seed, knobs)
 				climbing = climbing,
 				platform = if onPlatform(seen.x, seen.z) then 20 else 0,
 			})
-			-- server tick jitter, and the odd hitch
 			nextSample = t + (if rand() < 0.01 then rand(0.25, 0.6) else rand(0.08, 0.13))
 		end
 	end
@@ -212,7 +193,6 @@ end
 function Sessions.generate(seed)
 	local legit, cheats = {}, {}
 	for i = 1, 200 do
-		-- the last 50 have a terrible connection: lag spikes 5x as often
 		local bad = i > 150
 		table.insert(legit, {
 			name = (if bad then "badnet#" else "legit#") .. i,

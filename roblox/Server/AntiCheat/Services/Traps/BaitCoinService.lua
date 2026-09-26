@@ -5,8 +5,6 @@ local Config = require(AC.Settings.Config)
 local BaitCoin = require(AC.Classes.Traps.BaitCoin)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- a few coins floating way above the map where nobody can get. auto farm scripts and
--- teleporters grab anything named Coin, legit players never get close
 local BaitCoinService = { Name = "ACBaitCoinService" }
 
 local COUNT = 3
@@ -62,7 +60,6 @@ function BaitCoinService:Start()
 	self._honeypot = Framework.Get("ACHoneypotService")
 	self._map = Framework.Get("ACMapExportService")
 
-	-- wait for the map bounds so the coins know where "above the map" is
 	task.delay(8, function()
 		self:_refresh()
 	end)

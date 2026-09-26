@@ -1,4 +1,3 @@
--- ===== secrets the edge functions may read (service role only) =====
 create or replace function public.game_secret(p_name text) returns text
 language sql stable security definer set search_path = '' as $$
   select value from private.secrets
@@ -16,7 +15,6 @@ insert into private.secrets (key, value) values
   ('discord_client_id', '1553113119298162788')
 on conflict (key) do nothing;
 
--- ===== feature toggles =====
 create or replace function public.admin_set_features(p_features jsonb)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
@@ -44,7 +42,6 @@ begin
 end;
 $$;
 
--- ===== owner-managed secrets, write only =====
 create or replace function public.admin_set_secret(p_key text, p_value text)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
@@ -83,7 +80,6 @@ begin
 end;
 $$;
 
--- ===== commands the dashboard sends into live servers =====
 create or replace function public.admin_command(p_kind text, p_target bigint)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
@@ -106,7 +102,6 @@ begin
 end;
 $$;
 
--- hands out pending commands for players on the calling server
 create or replace function private.take_commands(p_ids bigint[]) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -137,7 +132,6 @@ language sql security definer set search_path = '' as $$
   where c.id = (a ->> 'id')::bigint and c.status = 'sent';
 $$;
 
--- ===== alt detection: z-scored behaviour distance to banned players =====
 create or replace function private.alt_check(p_user bigint) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -158,7 +152,6 @@ begin
 
   select count(*) into n from public.players
   where array_length(fingerprint, 1) = 8 and last_seen > now() - interval '30 days';
-  -- needs a population to know what "normal" looks like
   if n < 20 then return; end if;
 
   select array_agg(m order by idx), array_agg(s order by idx) into mu, sd from (
@@ -182,7 +175,6 @@ begin
       d := d + (((fp[i] - mu[i]) / sd[i]) - ((r.fingerprint[i] - mu[i]) / sd[i])) ^ 2;
     end loop;
     d := sqrt(d);
-    -- same cheat tool signature pulls them closer
     if my_sig is not null then
       select count(*)::float8 / greatest(cardinality(my_sig), 1) into overlap
       from (
@@ -207,7 +199,6 @@ begin
 end;
 $$;
 
--- ===== game ingest v2 =====
 create or replace function public.game_ingest(p jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -326,7 +317,6 @@ begin
 end;
 $$;
 
--- ===== live pulse, every few seconds =====
 create or replace function public.game_pulse(p jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -404,7 +394,6 @@ begin
 end;
 $$;
 
--- ===== appeals =====
 create or replace function public.submit_appeal(p_user text, p_message text)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
@@ -478,8 +467,6 @@ begin
 end;
 $$;
 
--- ===== learning loop: what your ban/unban decisions say about each check =====
--- volatile, it builds a temp table
 create or replace function public.tuning_suggestions()
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -542,7 +529,6 @@ begin
 end;
 $$;
 
--- ===== instant global bans: tell the notify function, which calls roblox open cloud =====
 create or replace function private.notify_ban() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -564,7 +550,6 @@ revoke all on function private.notify_ban() from public, anon, authenticated;
 create trigger bans_notify after insert or update on public.bans
   for each row execute function private.notify_ban();
 
--- ===== grants =====
 revoke all on function public.admin_set_features(jsonb), public.admin_set_secret(text, text), public.secrets_status(),
   public.admin_set_my_roblox(bigint), public.admin_command(text, bigint), public.submit_appeal(text, text),
   public.my_appeals(), public.decide_appeal(bigint, boolean, text), public.tuning_suggestions()
@@ -584,7 +569,6 @@ grant execute on function public.game_ingest(jsonb), public.game_pulse(jsonb), p
 revoke all on function private.take_commands(bigint[]), private.ack_commands(jsonb), private.alt_check(bigint)
   from public, anon, authenticated;
 
--- ===== housekeeping + daily report =====
 select cron.schedule('ac-housekeeping', '*/5 * * * *', $$
   update public.commands set status = 'expired' where status in ('pending','sent') and created_at < now() - interval '5 minutes';
   delete from public.servers where last_seen < now() - interval '10 minutes';
@@ -592,7 +576,6 @@ select cron.schedule('ac-housekeeping', '*/5 * * * *', $$
   delete from public.commands where created_at < now() - interval '7 days';
 $$);
 
--- 06:00 utc is 10:00 in tbilisi
 select cron.schedule('ac-daily-report', '0 6 * * *', $$
   select net.http_post(
     url := 'https://kapvjoemzsdqiealluzl.supabase.co/functions/v1/report',

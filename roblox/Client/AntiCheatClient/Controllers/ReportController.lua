@@ -5,8 +5,6 @@ local TextChatService = game:GetService("TextChatService")
 local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
 local ReportPanel = require(script.Parent.Parent.UI.ReportPanel)
 
--- client half of ACReportService: the report button, /report in chat, and the little
--- "thanks" messages. the server decides everything, this only shows it
 local ReportController = { Name = "ACReportController" }
 
 local player = Players.LocalPlayer

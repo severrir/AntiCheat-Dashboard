@@ -54,7 +54,7 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-        <Panel title="Live suspects" right={<span className="text-xs text-muted">online, by trust score</span>}>
+        <Panel title="Highest scores online" right={<span className="text-xs text-muted">live</span>}>
           {suspects.length === 0 ? (
             <Empty>Nobody online right now.</Empty>
           ) : (
@@ -75,7 +75,7 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
           )}
         </Panel>
 
-        <Panel title="What's firing · 24h">
+        <Panel title="Checks · 24h">
           {breakdown.sum === 0 ? (
             <Empty>No flags in the last 24 hours.</Empty>
           ) : (

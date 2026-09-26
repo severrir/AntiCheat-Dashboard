@@ -1,48 +1,9 @@
---[[
-	the only module your game code needs.
-
-	local AntiCheat = require(game.ServerScriptService.AntiCheat.API)
-
-	AntiCheat.Exempt(player, "Movement", 2)   -- before a legit teleport / knockback / dash
-	AntiCheat.Exempt(player, "Character", 3)  -- before morphs or scaling
-	AntiCheat.Exempt(player, "All", 5)
-
-	-- your Net remotes are already watched (spam, bad args, macros, honeypot tokens).
-	-- for hits, ask before applying damage:
-	if AntiCheat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
-		-- damage
-	end
-	AntiCheat.RecordMiss(player)                        -- swung at nothing
-
-	AntiCheat.RecordStat(player, "ReactionTime", 0.21, true) -- true = lower is suspicious
-	AntiCheat.Flag(player, "Custom", 20, { note = "bought item with negative price" })
-	AntiCheat.OnFlagged(function(player, check, amount, score, ctx) end)
-	AntiCheat.OnKicked(function(player, reason, score) end)
-
-	-- shadow mode: suspects stay in, hits stop landing and earnings are held
-	AntiCheat.IsShadowed(player)
-	AntiCheat.Shadow(player, true)                      -- or false to lift it
-
-	-- what players gain, so a ban can undo it. ask before giving:
-	coins += AntiCheat.Grant(player, "Coins", 100, "quest")  -- 0 while shadowed
-	if AntiCheat.GrantItem(player, "Golden Sword", "shop") then giveSword() end
-	AntiCheat.RecordKill(killer, victim)
-	AntiCheat.Transfer(fromPlayer, toPlayer, "Coins", 250)      -- trades, steals. item: amount = nil
-	AntiCheat.OnRevert(function(userId, summary) return takeBack(userId, summary) end) -- your DataStore code
-
-	-- player reports, if you'd rather use your own report ui (set Config.ReportButton = false)
-	local ok, message = AntiCheat.Report(reporter, targetPlayer, "Flying", "optional note")
-
-	inside your own Framework services you can also just Framework.Get("ACCombatService") etc.
-]]
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local API = {}
 
--- looked up on every call so this module can be required before the framework boots
 local function service(name)
 	return Framework.Get(name)
 end
@@ -126,7 +87,6 @@ function API.Report(reporter, target, reason, note)
 	return service("ACReportService"):Report(reporter, target, reason, note)
 end
 
--- true for the invisible bait dummies, skip them in your own npc / targeting code
 function API.IsBait(model)
 	return service("ACBaitNpcService"):IsBait(model)
 end

@@ -17,18 +17,17 @@ import { Tuning } from './pages/Tuning'
 import { Bans } from './pages/Bans'
 import { Settings } from './pages/Settings'
 
-// three.js is big, only load it when someone opens a replay
 const ReplayViewer = lazy(() => import('./pages/ReplayViewer'))
 
 const TABS = ['overview', 'mission', 'players', 'feed', 'reports', 'tools', 'appeals', 'tuning', 'bans', 'settings'] as const
 type Tab = (typeof TABS)[number]
 const LABELS: Record<Tab, string> = {
   overview: 'Overview',
-  mission: 'Mission Control',
+  mission: 'Live map',
   players: 'Players',
-  feed: 'Live feed',
+  feed: 'Feed',
   reports: 'Reports',
-  tools: 'Cheat tools',
+  tools: 'Tools',
   appeals: 'Appeals',
   tuning: 'Tuning',
   bans: 'Bans',
@@ -37,7 +36,6 @@ const LABELS: Record<Tab, string> = {
 
 type Route = { tab: Tab | 'appeal'; player?: number; replay?: number; game?: number }
 
-// #/player/<id>/<game> so links from discord open the right game
 function parseHash(): Route {
   const [, a, b, c] = window.location.hash.split('/')
   const id = Number(b)
@@ -73,7 +71,7 @@ function Login({ appeal }: { appeal: boolean }) {
     <div className="grid-bg grid min-h-full place-items-center p-6">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-panel/90 p-8 text-center shadow-2xl shadow-black/50 backdrop-blur">
         <Shield className="mx-auto h-12 w-12 text-accent" />
-        <h1 className="mt-4 text-xl font-semibold">{appeal ? 'Appeal a ban' : 'AntiCheat Console'}</h1>
+        <h1 className="mt-4 text-xl font-semibold">{appeal ? 'Appeal a ban' : 'AntiCheat'}</h1>
         <p className="mt-1 text-sm text-muted">
           {appeal ? 'Sign in with Discord so we can get back to you.' : 'Staff only. Sign in with the Discord account you were approved with.'}
         </p>
@@ -149,7 +147,6 @@ export default function App() {
         .maybeSingle()
         .then(({ data }) => alive && setMe(data))
     load()
-    // pending staff poll so they get in as soon as they're approved
     const timer = setInterval(load, 15_000)
     return () => {
       alive = false
@@ -178,7 +175,6 @@ export default function App() {
     if (signedIn) reloadGames()
   }, [signedIn, reloadGames])
 
-  // a link can point at a game, otherwise the last one used, otherwise the first
   const game =
     games.find((g) => g.id === route.game)?.id ?? games.find((g) => g.id === picked)?.id ?? games[0]?.id ?? 0
   const pickGame = useCallback((id: number) => {
@@ -218,7 +214,6 @@ export default function App() {
 
   if (!ready) return null
   if (!session) return <Login appeal={route.tab === 'appeal'} />
-  // signed-in staff wait a moment for the game list before being told they have none
   if (signedIn && games.length === 0 && route.tab !== 'appeal') {
     return <GamesLoading me={me} signOut={signOut} reload={reloadGames} />
   }
@@ -244,7 +239,7 @@ export default function App() {
           <a href="#/overview" className="flex items-center gap-2.5">
             <Shield className="h-7 w-7 text-accent" />
             <span className="font-semibold tracking-tight">AntiCheat</span>
-            <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">console</span>
+            <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">staff</span>
           </a>
           {games.length > 1 ? (
             <select

@@ -14,7 +14,6 @@ export function Bans({ bans, players, open }: { bans: Ban[]; players: Player[]; 
   const active = bans.filter((b) => b.active)
   const past = bans.filter((b) => !b.active).slice(0, 50)
 
-  // ban someone who never joined yet, straight by user id
   async function banById() {
     const userId = Number(id.trim())
     if (!Number.isSafeInteger(userId) || userId <= 0) {

@@ -10,7 +10,6 @@ local Scoring = require(AC.Util.Scoring)
 local T = Config.Thresholds
 local HISTORY = Config.HistorySeconds * Config.HotRate
 
--- everything the anticheat knows about one player in this server
 local PlayerProfile = {}
 PlayerProfile.__index = PlayerProfile
 
@@ -20,11 +19,9 @@ function PlayerProfile.new(player)
 		player = player,
 		userId = player.UserId,
 		admin = Config.Admins[player.UserId] == true,
-		-- admins aren't judged in live servers. in studio they are, so you can test with play solo
 		immune = Config.Admins[player.UserId] == true and not (RunService:IsStudio() and Config.CheckAdminsInStudio),
 		joinedAt = now,
 		kicked = false,
-		-- "auto" when the anticheat put them there, "staff" when a human did
 		shadow = nil,
 		shadowCleared = false,
 		reportWeight = 0,
@@ -35,7 +32,6 @@ function PlayerProfile.new(player)
 		byCheck = {},
 		exempt = {},
 
-		-- movement history, feeds forensic replay, 3D replays and behaviour fingerprints
 		times = RingBuffer.new(HISTORY),
 		xs = RingBuffer.new(HISTORY),
 		ys = RingBuffer.new(HISTORY),
@@ -43,7 +39,6 @@ function PlayerProfile.new(player)
 		yaws = RingBuffer.new(HISTORY),
 		allowed = RingBuffer.new(HISTORY),
 		grounds = RingBuffer.new(HISTORY),
-		-- limb poses next to every movement sample, so replays show the real animation
 		poses = RingBuffer.new(HISTORY, false),
 		rig = nil,
 		events = RingBuffer.new(64, false),
@@ -86,8 +81,6 @@ function PlayerProfile:AddScore(check, amount, now)
 	return self.score
 end
 
--- trust carried over from earlier sessions. not tied to any check, so it can't
--- satisfy the "two checks must agree" rule on its own, it just gets them there sooner
 function PlayerProfile:Carry(score)
 	if score > 0 then
 		self.score += score
@@ -95,7 +88,6 @@ function PlayerProfile:Carry(score)
 	end
 end
 
--- what each check is contributing right now, biggest first
 function PlayerProfile:Breakdown(now)
 	local out = {}
 	for check, entry in self.byCheck do
@@ -144,7 +136,6 @@ function PlayerProfile:Record(now, pos, yaw, allowed, grounded)
 	self.poses:Push(if self.rig and Config.RecordPoses then self.rig:Pose() else false)
 end
 
--- detail feeds the cheat tool fingerprint, e.g. "Speed x2.5"
 function PlayerProfile:Event(now, check, kind, detail)
 	self.events:Push({ t = now, check = check, kind = kind or check, detail = detail })
 end
@@ -162,22 +153,18 @@ function PlayerProfile:BindCharacter(char)
 	self.humanoid, self.root = nil, nil
 	local humanoid = char:WaitForChild("Humanoid", 10)
 	local root = char:WaitForChild("HumanoidRootPart", 10)
-	-- respawned while we were waiting, the newer call handles it
 	if self.char ~= char or not humanoid or not root then
 		return
 	end
 	self.humanoid, self.root = humanoid, root
 	Physics.Track(char)
 
-	-- the character check takes its baseline later, once the avatar has finished loading
 	self.boundAt = os.clock()
 	self.partCount = nil
 	self.rootSize = nil
 	self.move = nil
-	-- spawning can teleport you
 	self:Exempt("Movement", 1.5)
 
-	-- the avatar's clothes and accessories load a moment after spawning
 	self.rig = nil
 	task.spawn(function()
 		local player = self.player

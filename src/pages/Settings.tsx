@@ -26,7 +26,6 @@ export function Settings({ config, users, staff, me, reload }: Props) {
 
 const inputClass = 'rounded-lg border border-line bg-panel-2 px-3 py-1.5 text-sm outline-none focus:border-accent/60'
 
-// shows a freshly made game key exactly once. it's never stored anywhere we can read back
 function KeyReveal({ value, done }: { value: string; done: () => void }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -75,7 +74,6 @@ function GameSettings({ isOwner }: { isOwner: boolean }) {
     setGuild(current?.discord_guild ?? '')
   }, [current?.name, current?.universe_id, current?.discord_guild])
 
-  // switching games hides a key that was just shown
   useEffect(() => {
     setKey(null)
     setMsg('')
@@ -229,7 +227,6 @@ function Features({ config, reload }: { config: Config | null; reload: () => voi
     setBusy(key)
     setMsg('')
     const next = { ...current, [key]: !current[key] }
-    // only send what differs from the default, the game falls back cleanly for the rest
     const diff = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== FEATURE_DEFAULTS[k]))
     const { error } = await supabase.rpc('admin_set_features', { p_game: game, p_features: diff })
     setBusy(null)
@@ -384,7 +381,6 @@ function Thresholds({ config, reload }: { config: Config | null; reload: () => v
   async function save(next: Record<string, number>) {
     setBusy(true)
     setMsg('')
-    // only send what differs from default, so the game falls back cleanly
     const diff = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== DEFAULTS[k] && Number.isFinite(v)))
     const { data, error } = await supabase.rpc('admin_set_thresholds', { p_game: game, p_thresholds: diff })
     setBusy(false)

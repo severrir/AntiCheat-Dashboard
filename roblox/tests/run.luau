@@ -1,7 +1,3 @@
--- runs the real movement + scoring code against generated sessions (and any recorded ones)
--- outside roblox. prints a summary, and a BADGE: line the CI turns into the README badge.
--- luau tests/run.luau
-
 local MovementModel = require("../Server/AntiCheat/Classes/Player/MovementModel")
 local Scoring = require("../Server/AntiCheat/Util/Scoring")
 local RingBuffer = require("../Server/AntiCheat/Classes/Core/RingBuffer")
@@ -9,7 +5,6 @@ local SyncBatch = require("../Server/AntiCheat/Classes/Core/SyncBatch")
 local Sessions = require("./Sessions")
 local recorded = require("./recorded")
 
--- same defaults as Config.lua
 local T = {
 	KickScore = 100,
 	HalfLife = 45,
@@ -23,7 +18,6 @@ local T = {
 local DEFINITIVE = { Honeypot = true }
 local HISTORY = 200
 
--- plays one session through the model exactly like the server would, snapbacks included
 local function play(session)
 	local first = session.samples[1]
 	local s = MovementModel.new(first.x, first.y, first.z, first.t)
@@ -32,7 +26,6 @@ local function play(session)
 	local score, scoreAt = 0, first.t
 	local flags, kinds = 0, {}
 	local afterSnap = false
-	-- when we snap them back, the cheat keeps going from the snapped spot, like a real client would
 	local offX, offY, offZ = 0, 0, 0
 
 	local env = { wall = session.wall }
@@ -61,7 +54,6 @@ local function play(session)
 			violations:Push(p.t)
 			score = Scoring.decay(score, scoreAt, p.t, T.HalfLife) + verdict.severity * T.WeightMovement
 			scoreAt = p.t
-			-- snapbacks move the player in game, legit or not
 			do
 				local sx, sy, sz = s:SnapTarget()
 				offX += sx - x
@@ -138,7 +130,6 @@ if #missed > 0 then
 	print("missed: " .. table.concat(missed, ", "))
 end
 
--- the ledger is what an undo works from, so a failed sync must not lose or double anything
 do
 	local b = SyncBatch.new(10)
 	for _ = 1, 50 do
@@ -176,7 +167,6 @@ print(string.format(
 	falseKicks, #legit, caught, #cheats, color
 ))
 
--- a false kick is the one thing that must never ship
 if falseKicks > 0 then
 	error("false kicks on legit sessions", 0)
 end

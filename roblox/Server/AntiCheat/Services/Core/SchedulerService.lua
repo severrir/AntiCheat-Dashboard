@@ -5,8 +5,6 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- instead of checking everyone every frame, owe each player N checks per second
--- and pay that off a few players per frame. 50 players at 10hz = ~8 per frame
 local SchedulerService = { Name = "ACSchedulerService" }
 
 local Lane = {}
@@ -50,7 +48,6 @@ function SchedulerService:Init()
 	self._cold = Lane.new(Config.ColdRate)
 end
 
--- any Check (see Classes/Check). Start registers them automatically
 function SchedulerService:Add(check)
 	local lane = if check.Rate == "cold" then self._cold else self._hot
 	table.insert(lane.checks, check)

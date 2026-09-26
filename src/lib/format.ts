@@ -7,7 +7,6 @@ export function ago(iso: string) {
   return `${Math.floor(s / 86400)}d ago`
 }
 
-// servers sync every 20s, so anyone seen in the last minute is still in game
 export function isOnline(iso: string) {
   return Date.now() - new Date(iso).getTime() < 60_000
 }

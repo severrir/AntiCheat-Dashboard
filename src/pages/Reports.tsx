@@ -46,7 +46,6 @@ function group(reports: Report[]): Group[] {
     .sort((a, b) => b.weight - a.weight || b.latest.localeCompare(a.latest))
 }
 
-// how often this person's reports turned out right
 function track(p: Player | undefined) {
   if (!p) return null
   const decided = p.reports_confirmed + p.reports_dismissed
@@ -261,7 +260,7 @@ function ReportCard({
         </form>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          {g.replay && <Button tone="accent" onClick={() => openReplay(g.replay!)}>▶ What they were doing</Button>}
+          {g.replay && <Button tone="accent" onClick={() => openReplay(g.replay!)}>Watch replay</Button>}
           {!banned && (
             <Button tone="danger" onClick={() => setBanning(true)} disabled={busy}>
               Ban

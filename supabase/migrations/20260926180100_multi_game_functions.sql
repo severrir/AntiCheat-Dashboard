@@ -1,4 +1,3 @@
--- every function now takes the game it works on. old single-game versions go away
 drop function public.admin_ban(bigint, text, integer);
 drop function public.admin_unban(bigint);
 drop function public.admin_set_thresholds(jsonb);
@@ -21,7 +20,6 @@ drop function private.take_commands(bigint[]);
 drop function private.ack_commands(jsonb);
 drop function private.alt_check(bigint);
 
--- ===== secrets the edge functions read (service role only) =====
 create or replace function public.game_secret(p_name text) returns text
 language sql stable security definer set search_path = '' as $$
   select value from private.secrets
@@ -34,13 +32,11 @@ language sql stable security definer set search_path = '' as $$
   where game_id = p_game and key = p_name and p_name in ('discord_webhook', 'open_cloud_key');
 $$;
 
--- which game does this key belong to
 create or replace function public.game_auth(p_hash text) returns integer
 language sql stable security definer set search_path = '' as $$
   select game_id from private.game_keys where key_sha256 = p_hash;
 $$;
 
--- ===== games =====
 create or replace function private.new_key(g integer) returns text
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -53,7 +49,6 @@ begin
 end;
 $$;
 
--- the key is only ever shown here, once
 create or replace function public.admin_create_game(p_name text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -102,7 +97,6 @@ begin
 end;
 $$;
 
--- ===== team =====
 create or replace function public.admin_set_role(p_target uuid, p_role text)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
@@ -132,7 +126,6 @@ begin
 end;
 $$;
 
--- ===== settings per game =====
 create or replace function public.admin_set_thresholds(p_game integer, p_thresholds jsonb)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
@@ -209,7 +202,6 @@ create or replace function public.admin_set_secret(p_game integer, p_key text, p
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if p_key = 'discord_public_key' then
-    -- the bot is shared by every game
     if not private.is_owner() then raise exception 'not allowed'; end if;
     if p_value is null or p_value = '' then
       delete from private.secrets where key = p_key;
@@ -245,8 +237,6 @@ returns jsonb language sql stable security definer set search_path = '' as $$
   ) else '{}'::jsonb end;
 $$;
 
--- ===== undo what a cheater gained =====
--- everything they got since they started cheating (first flag in the last week), or since p_since
 create or replace function private.queue_revert(g integer, uid bigint, p_since timestamptz, who text)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
@@ -278,7 +268,6 @@ begin
         select key, sum(amount) total from l where kind = 'item' group by key having sum(amount) <> 0
       ) i), '{}'::jsonb),
     'kills', coalesce((select sum(amount) from l where kind = 'kill'), 0),
-    -- who they took things from, so the game can give it back
     'victims', coalesce((
       select jsonb_object_agg(v.victim::text, jsonb_strip_nulls(jsonb_build_object(
         'kills', nullif(v.kills, 0),
@@ -293,7 +282,6 @@ begin
       ) v), '{}'::jsonb)
   ) into summary;
 
-  -- one open undo per player is enough, the newest one covers everything
   update public.reverts set status = 'failed', result = 'replaced by a newer undo'
   where game_id = g and user_id = uid and status in ('pending', 'sent');
 
@@ -321,7 +309,6 @@ begin
 end;
 $$;
 
--- ===== reports =====
 create or replace function private.close_reports(g integer, uid bigint, confirmed boolean, who text)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
@@ -352,7 +339,6 @@ begin
 end;
 $$;
 
--- ===== bans =====
 create or replace function public.admin_ban(p_game integer, p_user_id bigint, p_reason text, p_hours integer default null)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -392,14 +378,12 @@ begin
   where game_id = p_game and user_id = p_user_id and active;
   if found then
     insert into public.actions (game_id, user_id, action, reason, actor) values (p_game, p_user_id, 'unban', '', who);
-    -- an undo that hasn't run yet shouldn't punish someone we just cleared
     update public.reverts set status = 'failed', result = 'cancelled by unban'
     where game_id = p_game and user_id = p_user_id and status in ('pending', 'sent');
   end if;
 end;
 $$;
 
--- ===== shadow mode =====
 create or replace function public.admin_set_shadow(p_game integer, p_user_id bigint, p_on boolean)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -414,7 +398,6 @@ begin
     shadowed = p_on,
     shadow_by = case when p_on then who end,
     shadowed_at = case when p_on then now() end;
-  -- live servers flip it within a pulse, everyone else gets it on join
   update public.commands set status = 'expired'
   where game_id = p_game and target_user = p_user_id and kind in ('shadow', 'unshadow') and status in ('pending', 'sent');
   insert into public.commands (game_id, kind, target_user, created_by)
@@ -424,7 +407,6 @@ begin
 end;
 $$;
 
--- ===== dashboard commands =====
 create or replace function public.admin_command(p_game integer, p_kind text, p_target bigint)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
@@ -480,7 +462,6 @@ language sql security definer set search_path = '' as $$
   where c.game_id = g and c.id = (a ->> 'id')::bigint and c.status = 'sent';
 $$;
 
--- ===== alt detection, inside one game =====
 create or replace function private.alt_check(g integer, p_user bigint) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -548,7 +529,6 @@ begin
 end;
 $$;
 
--- ===== game server sync =====
 create or replace function public.game_ingest(p_game integer, p jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -619,7 +599,6 @@ begin
   from (select user_id, count(*)::int n from k group by user_id) c
   where pl.game_id = g and pl.user_id = c.user_id;
 
-  -- the server shadowed someone on its own
   with s as (
     select (x ->> 'id')::bigint uid, (x ->> 'on')::boolean on_, left(coalesce(x ->> 'why', ''), 120) why
     from jsonb_array_elements(coalesce(p -> 'shadow', '[]'::jsonb)) x
@@ -633,7 +612,6 @@ begin
   insert into public.actions (game_id, user_id, action, reason, actor)
   select g, user_id, case when on_ then 'shadow' else 'unshadow' end, why, 'anticheat' from upd;
 
-  -- reports: weighted by how often this reporter has been right before
   with rep as (
     select (x ->> 'target')::bigint target, (x ->> 'reporter')::bigint reporter,
            left(x ->> 'reason', 24) reason, left(coalesce(x ->> 'note', ''), 200) note,
@@ -643,7 +621,6 @@ begin
   ), ok as (
     select rep.* from rep
     where rep.target <> rep.reporter
-      -- nobody gets more than 20 reports a day into the system
       and (select count(*) from public.reports r2
            where r2.game_id = g and r2.reporter_id = rep.reporter and r2.created_at > now() - interval '1 day') < 20
   ), ins as (
@@ -657,7 +634,6 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_array(target_id, reporter_id)), '[]'::jsonb) into new_reports from ins;
 
-  -- two statements, a player can be both reported and reporter in the same batch
   update public.players pl set reports_against = pl.reports_against + c.n
   from (select (x ->> 0)::bigint uid, count(*)::int n from jsonb_array_elements(new_reports) x group by 1) c
   where pl.game_id = g and pl.user_id = c.uid;
@@ -720,7 +696,6 @@ begin
     limit 500
   ) b;
 
-  -- undo jobs go to whichever server asks first. a server that died mid-job gets it retried after 2 minutes
   with picked as (
     update public.reverts rv set status = 'sent', sent_at = now()
     where rv.id in (
@@ -768,8 +743,6 @@ begin
 end;
 $$;
 
--- ban check on join, plus what follows the player between servers: suspicion, shadow mode,
--- and "someone you reported got banned"
 create or replace function public.game_join(p_game integer, p_user_id bigint) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -824,7 +797,6 @@ declare
   m record;
 begin
   select * into m from public.maps where place_id = p_place and version = p_version;
-  -- another game's place, leave it alone
   if found and m.game_id <> p_game then return false; end if;
   if found and m.received >= m.total then return false; end if;
   if not found then
@@ -850,7 +822,6 @@ begin
 end;
 $$;
 
--- ===== appeals =====
 create or replace function public.submit_appeal(p_user text, p_message text, p_game integer default null)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
@@ -876,7 +847,6 @@ begin
   end if;
   if target is null then raise exception 'could not find that player'; end if;
 
-  -- no game given: the game they were most recently banned from
   if g is null then
     select game_id into g from public.bans where user_id = target and active order by updated_at desc limit 1;
   end if;
@@ -936,7 +906,6 @@ begin
 end;
 $$;
 
--- ===== learning loop, per game =====
 create or replace function public.tuning_suggestions(p_game integer)
 returns jsonb language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1003,7 +972,6 @@ begin
 end;
 $$;
 
--- ===== instant bans: the notify function publishes into that game's servers =====
 create or replace function private.notify_ban() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -1021,7 +989,6 @@ begin
 end;
 $$;
 
--- ===== grants =====
 revoke all on function
   public.admin_create_game(text), public.admin_rotate_key(integer), public.admin_update_game(integer, text, bigint, text),
   public.admin_delete_game(integer), public.admin_set_role(uuid, text), public.admin_set_staff(uuid, integer, boolean),
@@ -1061,7 +1028,6 @@ revoke all on function private.new_key(integer), private.queue_revert(integer, b
   private.ack_commands(integer, jsonb), private.alt_check(integer, bigint), private.notify_ban()
   from public, anon, authenticated;
 
--- ===== housekeeping =====
 select cron.schedule('ac-housekeeping', '*/5 * * * *', $$
   update public.commands set status = 'expired' where status in ('pending','sent') and created_at < now() - interval '5 minutes';
   update public.reverts set status = 'failed', result = 'no server picked it up for a week'

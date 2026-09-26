@@ -1,8 +1,6 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 
--- a shiny "Coin" floating way out of reach. auto farm scripts grab anything called Coin,
--- real players never get close. also wraps parts named ACCoin that you place yourself
 local BaitCoin = {}
 BaitCoin.__index = BaitCoin
 
@@ -22,7 +20,6 @@ function BaitCoin.spawnAt(position, onGrab)
 	return BaitCoin.wrap(part, onGrab, true)
 end
 
--- owned = we made it and should delete it later
 function BaitCoin.wrap(part, onGrab, owned)
 	local self = setmetatable({ part = part, owned = owned == true }, BaitCoin)
 	self.connection = part.Touched:Connect(function(hit)

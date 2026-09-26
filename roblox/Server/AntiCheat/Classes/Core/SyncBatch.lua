@@ -1,5 +1,3 @@
--- everything waiting to go to the backend on the next sync. flags merge per player+check
--- so a speed hacker spamming 100 flags a second is still one row
 local SyncBatch = {}
 SyncBatch.__index = SyncBatch
 
@@ -37,7 +35,6 @@ function SyncBatch:AddFlag(profile, check, raw, amount, score, ctx, pos)
 		entry.raw += raw
 		entry.hits += 1
 		entry.score = score
-		-- keep the context of the worst hit, that's the one worth reading
 		if amount >= entry.top then
 			entry.top = amount
 			entry.ctx = ctx
@@ -86,7 +83,6 @@ function SyncBatch:AddRevertAck(id, ok, result)
 	table.insert(self.revertAcks, { id = id, ok = ok, result = result })
 end
 
--- gains merge per player + what + where from, so a coin farm is one row per sync, not thousands
 function SyncBatch:AddLedger(userId, kind, key, amount, victim, source, withheld)
 	local k = table.concat({ userId, kind, key, victim or "", source or "", if withheld then "w" else "" }, "|")
 	local entry = self.ledger[k]
@@ -109,7 +105,6 @@ function SyncBatch:AddLedger(userId, kind, key, amount, victim, source, withheld
 	}
 end
 
--- hands everything over and starts empty
 function SyncBatch:Drain()
 	local flags = {}
 	for _, entry in self.flags do
@@ -139,7 +134,6 @@ local function append(into, from)
 	table.move(from, 1, #from, #into + 1, into)
 end
 
--- a failed request shouldn't lose anything a human or an undo depends on. flags can go, they're capped anyway
 function SyncBatch:Restore(drained)
 	append(self.kicks, drained.kicks)
 	append(self.acks, drained.acks)

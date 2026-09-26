@@ -6,9 +6,6 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- bans land on every live server within about a second.
--- the dashboard publishes through roblox open cloud the moment you click ban,
--- and any server that hears about a new ban first relays it to the rest
 local GlobalBanService = { Name = "ACGlobalBanService" }
 
 local TOPIC = "AC_Ban"
@@ -22,7 +19,6 @@ function GlobalBanService:Relay(userId, active, reason)
 	if not Config.On("GlobalBans") then
 		return
 	end
-	-- every server hears about the same ban on its sync, one relay per ban per server is plenty
 	local key = userId .. tostring(active)
 	local last = self._lastRelay[key]
 	if last and os.clock() - last < RELAY_COOLDOWN then

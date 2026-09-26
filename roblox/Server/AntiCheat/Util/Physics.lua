@@ -1,4 +1,3 @@
--- one shared raycast setup that ignores every character, instead of building params per check
 local Physics = {}
 
 local params = RaycastParams.new()

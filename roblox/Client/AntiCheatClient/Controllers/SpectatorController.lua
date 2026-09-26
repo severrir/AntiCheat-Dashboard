@@ -6,8 +6,6 @@ local UserInputService = game:GetService("UserInputService")
 local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
 local SpectatorPanel = require(script.Parent.Parent.UI.SpectatorPanel)
 
--- client half of ACSpectatorService. the panel only ever gets built for accounts the server
--- says are admins, and the server re-checks everything it receives anyway. /spectate or F8
 local SpectatorController = { Name = "ACSpectatorController" }
 
 local player = Players.LocalPlayer
@@ -45,7 +43,6 @@ function SpectatorController:_setup()
 		end
 	end)
 
-	-- /spectate in chat, only created for admins
 	local commands = TextChatService:FindFirstChild("TextChatCommands")
 	if commands then
 		local cmd = Instance.new("TextChatCommand")
@@ -59,7 +56,6 @@ function SpectatorController:_setup()
 	end
 end
 
--- point the camera at whoever we're watching, or back at ourselves
 function SpectatorController:_follow(state)
 	local camera = workspace.CurrentCamera
 	local target = state.active and Players:GetPlayerByUserId(state.target)

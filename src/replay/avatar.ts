@@ -1,21 +1,14 @@
 import * as THREE from 'three'
 import { SUPABASE_URL, type Rig, type RigPart } from '../lib/supabase'
 
-// the replay's avatar: every body part as a box in its real size and color, with the player's
-// classic shirt and pants folded onto it exactly like roblox does, accessories as soft shapes in
-// their texture's color, and each limb driven by the pose the server recorded.
-// real 3D meshes need a roblox login to download, textures don't
+const TEMPLATE_W = 585
+type Rect = [number, number, number, number]
 
-const TEMPLATE_W = 585 // classic clothing template size
-type Rect = [number, number, number, number] // x, y, w, h in template pixels
-
-// where each face lives on the classic shirt/pants template
 const TORSO = { up: [231, 8, 128, 64], front: [231, 74, 128, 128], px: [165, 74, 64, 128], nx: [361, 74, 64, 128], back: [427, 74, 128, 128], down: [231, 204, 128, 64] } as const
 const RIGHT = { up: [217, 289, 64, 64], front: [217, 355, 64, 128], px: [151, 355, 64, 128], nx: [19, 355, 64, 128], back: [85, 355, 64, 128], down: [217, 485, 64, 64] } as const
 const LEFT = { up: [308, 289, 64, 64], front: [308, 355, 64, 128], px: [506, 355, 64, 128], nx: [374, 355, 64, 128], back: [440, 355, 64, 128], down: [308, 485, 64, 64] } as const
 
 type Chain = 'torso' | 'rarm' | 'larm' | 'rleg' | 'lleg' | 'head'
-// top to bottom, the template's 128px of height gets split between these by their real heights
 const CHAINS: Record<Exclude<Chain, 'head'>, string[][]> = {
   torso: [['UpperTorso', 'LowerTorso'], ['Torso']],
   rarm: [['RightUpperArm', 'RightLowerArm', 'RightHand'], ['Right Arm']],
@@ -32,7 +25,6 @@ function chainOf(name: string): { chain: Chain; links: string[] } | null {
   return null
 }
 
-// old replays have no rig: a plain blocky R6 so they still get a person, not a capsule
 export const DEFAULT_RIG: Rig = {
   type: 'R6',
   hip: 0,
@@ -49,7 +41,6 @@ export const DEFAULT_RIG: Rig = {
 
 const imageCache = new Map<number, Promise<ImageBitmap | null>>()
 
-// roblox image asset -> pixels, through our avatar function (roblox's cdn has no CORS)
 export function robloxImage(id: number | null | undefined): Promise<ImageBitmap | null> {
   if (!id) return Promise.resolve(null)
   let hit = imageCache.get(id)
@@ -59,7 +50,6 @@ export function robloxImage(id: number | null | undefined): Promise<ImageBitmap 
         const res = await fetch(`${SUPABASE_URL}/functions/v1/avatar?asset=${id}`).catch(() => null)
         if (res?.status === 200) return createImageBitmap(await res.blob()).catch(() => null)
         if (res?.status !== 202) return null
-        // roblox is still rendering it
         await new Promise((r) => setTimeout(r, 1500))
       }
       return null
@@ -85,7 +75,6 @@ function averageColor(img: ImageBitmap): THREE.Color | null {
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`
 
-// one face of a body part: body color, then pants, then shirt, sliced to this part's share of the limb
 function faceCanvas(
   base: number,
   rect: Rect | null,
@@ -114,7 +103,6 @@ function faceCanvas(
   return tex
 }
 
-// the classic smile for heads without a face decal (dynamic heads bake theirs into a mesh texture)
 function drawFace(face: ImageBitmap | null) {
   return (g: CanvasRenderingContext2D, size: number) => {
     if (face) {
@@ -137,8 +125,6 @@ function drawFace(face: ImageBitmap | null) {
 
 export type Avatar = {
   group: THREE.Group
-  // place the whole avatar at the root, then pose every limb (offset + rotation per limb, from the root).
-  // no pose plays a simple walk cycle instead
   update(root: THREE.Vector3, yaw: number, pos: Float32Array | null, rot: Float32Array | null, speed: number, t: number): void
   setFlagged(on: boolean): void
   dispose(): void
@@ -168,9 +154,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     byName.set(part.n, limb)
   }
 
-  // accessories ride on their limb as simple shapes in their texture's color. their meshes need a
-  // roblox login to download, and a raw bounding box (long hair, a puffer vest) would swallow the body,
-  // so each shape is kept close to the limb it sits on. layered clothing is skipped
   const sizeOf = new Map(rig.parts.map((p) => [p.n, p.s] as const))
   const ball = new THREE.SphereGeometry(0.5, 14, 10)
   const block = new THREE.BoxGeometry(1, 1, 1)
@@ -185,7 +168,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     const inside = (i: number, k: number) => THREE.MathUtils.clamp(a.o[i], -ls[i] * k, ls[i] * k)
     let m: THREE.Mesh
     if (a.l === 'Head') {
-      // hair and hats: a blocky cap over the top of the head and down the back, the face stays visible
       const H = ls[1] / 2
       if (a.o[1] > ls[1] * 0.9) {
         m = new THREE.Mesh(block, mat)
@@ -202,7 +184,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
         limb.mesh.add(back)
       }
     } else if (/Torso$/.test(a.l)) {
-      // vests, backpacks, capes: a block hugging the torso
       m = new THREE.Mesh(block, mat)
       m.scale.set(fit(0, 1.08), fit(1, 1.04), fit(2, 1.35))
       m.position.set(inside(0, 0.1), inside(1, 0.1), inside(2, 0.25))
@@ -222,7 +203,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     }
   }
 
-  // clothes arrive a moment later, the body shows in plain colors until then
   const clothes = rig.clothes
   Promise.all([robloxImage(clothes?.shirt), robloxImage(clothes?.pants), robloxImage(clothes?.tshirt), robloxImage(clothes?.face)]).then(
     ([shirt, pants, tee, face]) => {
@@ -235,7 +215,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     },
   )
 
-  // name tag, turns red while something is firing
   const tag = document.createElement('canvas')
   tag.width = 256
   tag.height = 64
@@ -282,7 +261,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
           q.set(rot[i * 4], rot[i * 4 + 1], rot[i * 4 + 2], rot[i * 4 + 3])
           local.compose(v, q, one)
         } else {
-          // no recorded pose: swing arms and legs from the shoulder/hip with the speed they moved at
           local.copy(limb.rest)
           const sign = limb.chain === 'rarm' || limb.chain === 'lleg' ? 1 : limb.chain === 'larm' || limb.chain === 'rleg' ? -1 : 0
           if (sign !== 0) {
@@ -312,7 +290,6 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
   }
 }
 
-// fold the templates onto one part's six faces: +X, -X, top, bottom, back, front (three.js box order)
 function paint(
   limb: Limb,
   part: RigPart,
@@ -332,7 +309,6 @@ function paint(
     return
   }
 
-  // this part's slice of the limb's height, by real part heights
   const heights = info.links.map((n) => rig.parts.find((p) => p.n === n)?.s[1] ?? 0)
   const total = heights.reduce((a, b) => a + b, 0) || 1
   const idx = info.links.indexOf(part.n)
@@ -343,7 +319,6 @@ function paint(
   const layout = info.chain === 'torso' ? TORSO : info.chain === 'rarm' || info.chain === 'rleg' ? RIGHT : LEFT
   const legs = info.chain === 'rleg' || info.chain === 'lleg'
   const arms = info.chain === 'rarm' || info.chain === 'larm'
-  // pants cover torso and legs, the shirt goes over torso and arms
   const layers = [!arms ? img.pants : null, !legs ? img.shirt : null]
   if (!layers[0] && !layers[1]) return
 

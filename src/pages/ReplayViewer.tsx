@@ -13,13 +13,11 @@ type Props = { id: number; back: () => void; openPlayer: (id: number, game?: num
 
 const SPEEDS = [0.25, 0.5, 1, 2]
 
-// position at time t, interpolated between recorded samples
 function sampleAt(samples: Replay['samples'], t: number) {
   let i = 1
   while (i < samples.length - 1 && samples[i][0] < t) i++
   const a = samples[i - 1], b = samples[i]
   const span = b[0] - a[0]
-  // a snapback is instant, don't slide the ghost across it
   const k = b[5] === 1 || span <= 0 ? (t >= b[0] ? 1 : 0) : Math.min(1, Math.max(0, (t - a[0]) / span))
   const yawDelta = Math.atan2(Math.sin(b[4] - a[4]), Math.cos(b[4] - a[4]))
   return {
@@ -60,7 +58,6 @@ function download(name: string, text: string) {
   URL.revokeObjectURL(url)
 }
 
-
 type CamMode = 'chase' | 'orbit' | 'top'
 const CAMS: { key: CamMode; label: string }[] = [
   { key: 'chase', label: 'Chase' },
@@ -68,7 +65,6 @@ const CAMS: { key: CamMode; label: string }[] = [
   { key: 'top', label: 'Top' },
 ]
 
-// every recorded pose as limb offsets + quaternions, so playback can blend between samples smoothly
 function preparePoses(replay: Replay) {
   const rig = replay.rig
   if (!rig || !replay.poses) return null
@@ -151,7 +147,6 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     [replay],
   )
 
-  // the whole three.js scene lives in here
   useEffect(() => {
     const el = mount.current
     if (!el || !replay || map === undefined || replay.samples.length < 2) return
@@ -178,16 +173,14 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     const disposables: { dispose(): void }[] = []
     const track = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x)
 
-    // path bounds, used for the camera and the fallback floor
     const box = new THREE.Box3()
     for (const s of samples) box.expandByPoint(new THREE.Vector3(s[1], s[2], s[3]))
     const center = box.getCenter(new THREE.Vector3())
-    const legs = rig.hip + rig.root[1] / 2 // root to feet
+    const legs = rig.hip + rig.root[1] / 2
     const floorY = box.min.y - (rig.type === 'R6' ? 3 : legs)
 
     const world = buildWorld(scene, map, center, floorY)
 
-    // trail at their feet: cyan, red around detections, amber for our snapbacks
     const hot = replay.events.map((ev) => ev[0])
     const feet = rig.type === 'R6' ? 2.9 : legs - 0.1
     const trailPos: number[] = [], trailCol: number[] = []
@@ -202,7 +195,6 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     trailGeo.setAttribute('color', new THREE.Float32BufferAttribute(trailCol, 3))
     scene.add(new THREE.Line(trailGeo, track(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }))))
 
-    // snapback rings on the ground
     const ringGeo = track(new THREE.TorusGeometry(1.4, 0.12, 8, 24).rotateX(Math.PI / 2))
     const ringMat = track(new THREE.MeshBasicMaterial({ color: '#fbbf24' }))
     for (const s of samples) {
@@ -212,7 +204,6 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
       scene.add(ring)
     }
 
-    // a thin pillar of light wherever something fired
     const beamGeo = track(new THREE.CylinderGeometry(0.08, 0.08, 16, 8))
     for (const ev of replay.events) {
       if (ev[0] < samples[0][0] || ev[0] > samples[samples.length - 1][0]) continue
@@ -241,7 +232,6 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     const observer = new ResizeObserver(onResize)
     observer.observe(el)
 
-    // scratch space for blending two poses
     const n = rig.parts.length
     const pos = new Float32Array(n * 3), rot = new Float32Array(n * 4)
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion()
@@ -290,13 +280,11 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
       avatar.update(root, p.yaw, posed ? pos : null, posed ? rot : null, moving, t)
       avatar.setFlagged(hot.some((h) => Math.abs(h - t) < 0.35))
 
-      // cameras
       const mode = camRef.current
       controls.enabled = mode === 'orbit'
       const smooth = first ? 1 : 1 - Math.exp(-dt * 5)
       look.set(p.x, p.y + 1.5, p.z)
       if (mode === 'chase') {
-        // roblox's default camera: behind and a little above, turning with them
         const d = Math.atan2(Math.sin(p.yaw - camYaw), Math.cos(p.yaw - camYaw))
         camYaw += d * (first ? 1 : 1 - Math.exp(-dt * 3))
         want.set(Math.sin(camYaw) * 12, 4.5, Math.cos(camYaw) * 12).add(root)
@@ -317,13 +305,11 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
       if (mode !== 'orbit') controls.target.copy(eye)
       first = false
 
-      // the sun's shadow box follows the action
       world.sun.position.copy(root).addScaledVector(world.sunDir, 150)
       world.sun.target.position.copy(root)
 
       renderer.render(scene, camera)
 
-      // react state only ~10x a second, the scene itself runs every frame
       if (now - uiTick > 100) {
         uiTick = now
         setTime(t)
@@ -353,7 +339,6 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     setTime(t)
   }
 
-  // plays the replay once from the start and saves what the camera saw
   async function saveVideo() {
     const canvas = canvasRef.current
     if (!canvas || !replay || recording) return
@@ -467,7 +452,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
               </span>
               {videoSupported() && (
                 <Button onClick={saveVideo} disabled={recording || map === undefined}>
-                  {recording ? 'Recording…' : '⬇ Save video'}
+                  {recording ? 'Recording…' : 'Save video'}
                 </Button>
               )}
               <span className="ml-auto font-mono text-xs text-muted">
@@ -482,7 +467,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
         {file && replay ? (
           <div className="space-y-5">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Case file</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Summary</div>
               <h2 className="mt-1 text-lg font-semibold">{name}</h2>
               <div className="mt-1 flex gap-3 text-xs">
                 <button onClick={() => openPlayer(replay.user_id, replay.game_id)} className="text-accent hover:underline">

@@ -112,7 +112,6 @@ create policy "admins read map chunks" on public.map_chunks for select to authen
 create policy "admins read commands" on public.commands for select to authenticated using ((select private.is_admin()));
 create policy "admins read appeals" on public.appeals for select to authenticated using ((select private.is_admin()));
 
--- live radar goes over a private broadcast channel, only admins may listen
 create policy "admins receive mission" on realtime.messages for select to authenticated
   using ((select private.is_admin()) and realtime.topic() = 'mission');
 

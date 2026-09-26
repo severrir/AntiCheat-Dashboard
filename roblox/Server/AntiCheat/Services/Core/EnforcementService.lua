@@ -8,10 +8,9 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds
 
--- decides when enough is enough. kicks only, bans are a human decision from the dashboard
 local EnforcementService = {
 	Name = "ACEnforcementService",
-	Kicked = Signal.new(), -- (player, reason, score)
+	Kicked = Signal.new(),
 }
 
 local function reasonText(breakdown)
@@ -22,7 +21,6 @@ local function reasonText(breakdown)
 	return table.concat(parts, ", ")
 end
 
--- the "which exploit tool was this" fingerprint: the distinct things they tripped
 local function signature(profile)
 	local seen, out = {}, {}
 	for i = 1, profile.events.count do
@@ -37,7 +35,6 @@ local function signature(profile)
 	return table.move(out, 1, math.min(#out, 12), 1, {})
 end
 
--- movement proves itself: 3 violations in 10s, or the recorded path really was too fast
 local function movementConfirmed(profile, now)
 	local recent = 0
 	for i = 1, profile.moveViolations.count do
@@ -49,7 +46,6 @@ local function movementConfirmed(profile, now)
 end
 
 function EnforcementService:Evaluate(profile, now)
-	-- staff shadowed them to watch, a kick would end that. the flags still pile up
 	if profile.kicked or (profile.shadow == "staff" and Config.On("ShadowMode")) then
 		return
 	end
@@ -75,12 +71,10 @@ function EnforcementService:_punish(profile, breakdown, score)
 	local sig = signature(profile)
 	self._threat:NoteKick()
 
-	-- on the island nobody gets kicked, they just keep playing with each other
 	if self._island:IsIsland() then
 		return
 	end
 
-	-- grab the replay before they're gone, upload it after
 	local recording = if Config.On("Replays") then self._recorder:Capture(profile, "kick", reason) else nil
 
 	if not (Config.On("CheaterIsland") and self._island:Send(player)) then

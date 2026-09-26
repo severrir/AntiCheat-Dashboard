@@ -11,8 +11,6 @@ local T = Config.Thresholds
 local State = Enum.HumanoidStateType
 local DOWN = Vector3.new(0, -1, 0)
 
--- roblox side of the movement check: reads the character, asks the player's MovementModel,
--- snaps them back. speed, teleport, blink, fly, super jump, noclip
 local MovementService = Check.extend({
 	Name = "ACMovementService",
 	Category = "Movement",
@@ -20,8 +18,6 @@ local MovementService = Check.extend({
 	Rate = "hot",
 })
 
--- point inside a block part. collisions keep a real player's root center at least half a
--- body width away from any wall, so a center that's inside one at all went through it
 local DEEP = 0.1
 local function buried(part, point)
 	if not (part:IsA("Part") and part.Shape == Enum.PartType.Block) then
@@ -33,9 +29,6 @@ local function buried(part, point)
 end
 
 local env = {
-	-- solid thing between two points. rays don't hit from the inside, and a slow walk through a
-	-- thin wall can land a sample inside it, so: through it both ways, ended up inside the thing
-	-- we hit, or started inside the thing we hit looking back
 	wall = function(ax, ay, az, bx, by, bz)
 		local a, b = Vector3.new(ax, ay, az), Vector3.new(bx, by, bz)
 		local forward = Physics.Cast(a, b - a)
@@ -81,7 +74,6 @@ function MovementService:Step(profile, now)
 		profile.vaultWatch = nil
 	end
 
-	-- vehicles, exemptions, server hiccups: just follow along
 	local model = profile.move
 	if not model or hum.SeatPart or profile:IsExempt("Movement", now) or now - model.lt > 1 then
 		profile.move = MovementModel.new(pos.X, pos.Y, pos.Z, now)
@@ -110,14 +102,11 @@ function MovementService:Step(profile, now)
 
 	local look = root.CFrame.LookVector
 	local yaw = math.atan2(-look.X, -look.Z)
-	-- a negative allowed marks the sample right after one of our snapbacks,
-	-- so replay and forensics don't count our own yank as their movement
 	local marker = if profile.afterSnap then -1 else 1
 	profile.afterSnap = verdict ~= nil
 	profile:Record(now, pos, yaw, math.max(allowed, 1) * marker, ground ~= nil or climbing)
 
 	if profile.immune then
-		-- admins are only recorded (for test sessions), never judged
 		profile.move = MovementModel.new(pos.X, pos.Y, pos.Z, now)
 		profile.afterSnap = false
 		return
@@ -126,13 +115,9 @@ function MovementService:Step(profile, now)
 		return
 	end
 
-	-- already on their way into the vault, it'll catch them when they land
 	if profile.vaultWatch then
 		return
 	end
-	-- the server smooths big client teleports, so a jump into the vault arrives as a few steps
-	-- headed at it. hold the snapback a moment so they land and trip it. once per 10s at most,
-	-- so running at the vault can't buy free time over and over
 	if
 		(verdict.kind == "Teleport" or verdict.kind == "Speed")
 		and now - (profile.vaultWatchAt or -math.huge) > 10
@@ -142,7 +127,6 @@ function MovementService:Step(profile, now)
 		profile.vaultWatchAt = now
 	end
 
-	-- counted before flagging so enforcement sees this one when it decides
 	profile.moveViolations:Push(now)
 	self:Flag(profile, verdict.severity, {
 		kind = verdict.kind,

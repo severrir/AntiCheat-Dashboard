@@ -7,11 +7,8 @@ local Config = require(AC.Settings.Config)
 local Signal = require(AC.Classes.Core.Signal)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- bans come from the dashboard / discord bot. this keeps them enforced in game:
--- join check, kicking people already inside, and roblox's own ban api so alts get caught too
 local BanService = {
 	Name = "ACBanService",
-	-- (player, response) for everyone who got in. shadow mode and report thanks hang off this
 	JoinChecked = Signal.new(),
 }
 
@@ -24,10 +21,9 @@ local function message(reason)
 end
 
 function BanService:Init()
-	self._cache = {} -- userId -> reason
+	self._cache = {}
 end
 
--- returns true when this server hadn't heard about the ban yet
 function BanService:Apply(userId, active, reason)
 	if not active then
 		self._cache[userId] = nil
@@ -46,7 +42,6 @@ function BanService:IsBanned(userId)
 	return self._cache[userId] ~= nil
 end
 
--- doesn't work in studio. live servers pick it up since unsynced bans keep coming back
 function BanService:_syncRoblox(userId, active, expires, reason)
 	if RunService:IsStudio() then
 		return
@@ -82,7 +77,6 @@ function BanService:_onSynced(data)
 		if userId then
 			local reason = if type(ban.reason) == "string" then ban.reason else ""
 			local active = ban.active == true
-			-- tell every other server right away instead of waiting for their next sync
 			if self:Apply(userId, active, reason) then
 				self._global:Relay(userId, true, reason)
 			end
@@ -95,7 +89,6 @@ end
 
 function BanService:_onJoin(player)
 	local userId = player.UserId
-	-- same rule as PlayerProfile.immune: admins are left alone, except in studio
 	if Config.Admins[userId] and not (RunService:IsStudio() and Config.CheckAdminsInStudio) then
 		return
 	end
@@ -114,7 +107,6 @@ function BanService:_onJoin(player)
 		return
 	end
 
-	-- suspicion follows you between servers, fading with time away
 	if Config.On("CrossServerTrust") and type(res.carry) == "table" and type(res.carry.score) == "number" then
 		local hours = (tonumber(res.carry.away) or 0) / 3600
 		local carried = res.carry.score * 0.5 ^ (hours / Config.CarryHalfLifeHours)

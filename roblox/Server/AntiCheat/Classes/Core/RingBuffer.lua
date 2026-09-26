@@ -1,4 +1,3 @@
--- fixed size, preallocated, overwrites the oldest. no garbage in hot loops
 local RingBuffer = {}
 RingBuffer.__index = RingBuffer
 
@@ -20,7 +19,6 @@ function RingBuffer:Push(value)
 	end
 end
 
--- 1 = newest
 function RingBuffer:Get(i)
 	if i > self.count then
 		return nil

@@ -1,4 +1,3 @@
-// same defaults as Config.lua in the game. keep these two in sync
 export type Field = { key: string; label: string; hint: string; step: number; def: number }
 
 export const GROUPS: { title: string; fields: Field[] }[] = [
@@ -45,7 +44,6 @@ export const DEFAULTS: Record<string, number> = Object.fromEntries(
   GROUPS.flatMap((g) => g.fields.map((f) => [f.key, f.def])),
 )
 
-// every feature can be flipped live. same list and defaults as Config.Features in the game
 export const FEATURES: { key: string; label: string; hint: string; def: boolean }[] = [
   { key: 'Movement', label: 'Movement check', hint: 'speed, teleport, fly, noclip, super jump, blink', def: true },
   { key: 'Character', label: 'Character check', hint: 'godmode, humanoid swaps, hitbox resize', def: true },

@@ -1,4 +1,3 @@
--- replays carry the avatar rig and a limb pose per sample, maps carry lighting and a terrain heightmap
 alter table public.replays add column rig jsonb, add column poses jsonb;
 alter table public.maps add column sky jsonb, add column terrain jsonb;
 

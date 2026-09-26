@@ -1,10 +1,8 @@
--- how someone plays, boiled down to 8 numbers. used to spot a banned player's new account.
--- reads the movement history the movement check already records, so it costs almost nothing
 local PlayStyle = {}
 PlayStyle.__index = PlayStyle
 
-local MIN_SAMPLES = 600 -- a minute of play before we trust the numbers
-local MOVING = 2 -- studs/s
+local MIN_SAMPLES = 600
+local MOVING = 2
 
 function PlayStyle.new()
 	return setmetatable({
@@ -17,7 +15,6 @@ function PlayStyle.new()
 	}, PlayStyle)
 end
 
--- walks the samples recorded since last time, oldest first
 function PlayStyle:Consume(profile)
 	local times = profile.times
 	local newest = 0
@@ -71,7 +68,6 @@ function PlayStyle:_sample(profile, i, dt)
 	end
 	self.turns += dyaw
 
-	-- straightness over 2s windows: how far you got vs how far you walked
 	if not self.windowStart then
 		self.windowStart = { profile.xs:Get(i), profile.zs:Get(i) }
 	end
@@ -90,7 +86,6 @@ function PlayStyle:_sample(profile, i, dt)
 	self.wasMoving, self.wasGrounded = moving, grounded
 end
 
--- nil until there's enough play to be meaningful
 function PlayStyle:Vector(netCalls)
 	if self.samples < MIN_SAMPLES or self.time <= 0 then
 		return nil
@@ -100,14 +95,14 @@ function PlayStyle:Vector(netCalls)
 		return math.floor(n * 1000 + 0.5) / 1000
 	end
 	return {
-		r(if self.moving > 0 then self.ratioSum / self.moving else 0), -- how close to full speed they walk
-		r(self.moving / self.samples), -- how much of the time they're moving
-		r(self.air / self.samples), -- how much of the time they're airborne
-		r(self.jumps / minutes), -- jumps per minute
-		r(self.turns / self.time), -- how fast they turn, rad/s
-		r(if self.straightN > 0 then self.straightSum / self.straightN else 0), -- straight lines vs wandering
-		r(self.stopGo / minutes), -- start/stop rhythm
-		r(netCalls / minutes), -- remote calls per minute
+		r(if self.moving > 0 then self.ratioSum / self.moving else 0),
+		r(self.moving / self.samples),
+		r(self.air / self.samples),
+		r(self.jumps / minutes),
+		r(self.turns / self.time),
+		r(if self.straightN > 0 then self.straightSum / self.straightN else 0),
+		r(self.stopGo / minutes),
+		r(netCalls / minutes),
 	}
 end
 

@@ -6,7 +6,6 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- runs what the dashboard asks for: capture a replay, kick, or pull an admin in to spectate
 local CommandService = { Name = "ACCommandService" }
 
 function CommandService:Init()
@@ -45,7 +44,6 @@ function CommandService:_kick(_cmd, target)
 	return true, "kicked"
 end
 
--- the backend already knows, so these don't report back
 function CommandService:_shadowOn(_cmd, target)
 	local profile = target and self._players:GetById(target)
 	if not profile then
@@ -73,7 +71,6 @@ function CommandService:_spectate(cmd, target)
 		self._spectator:Begin(admin, target)
 		return true, "spectating here"
 	end
-	-- target is in another server, take the admin there
 	if type(cmd.server) ~= "string" or cmd.server == "" or string.sub(cmd.server, 1, 7) == "studio-" then
 		return false, "target server unknown"
 	end
@@ -89,7 +86,6 @@ function CommandService:Dispatch(list)
 		return
 	end
 	for _, cmd in list do
-		-- the same command can arrive through both sync and pulse
 		if type(cmd) == "table" and type(cmd.id) == "number" and not self._handled[cmd.id] then
 			self._handled[cmd.id] = true
 			task.spawn(function()

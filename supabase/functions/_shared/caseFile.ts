@@ -1,7 +1,5 @@
-// turns replay events into sentences anyone can read. shared by the dashboard and the edge functions
-
-export type ReplayEvent = [number, string, string, string?] // [t, check, kind, detail]
-export type Sample = [number, number, number, number, number, number, number] // [t, x, y, z, yaw, snapped, grounded]
+export type ReplayEvent = [number, string, string, string?]
+export type Sample = [number, number, number, number, number, number, number]
 
 export type CaseInput = {
   name: string
@@ -20,7 +18,6 @@ function remoteName(kind: string) {
   return i >= 0 ? kind.slice(i + 1) : kind
 }
 
-// top speed seen in the path, studs per second
 function topSpeed(samples: Sample[] = []) {
   let best = 0
   for (let i = 1; i < samples.length; i++) {

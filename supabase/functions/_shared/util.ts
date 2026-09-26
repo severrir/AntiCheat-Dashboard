@@ -10,7 +10,6 @@ export const db = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 const cache = new Map<string, { value: string | null; at: number }>();
 
-// secrets live in a table nobody but the service role can reach. cached a minute so rotating one needs no redeploy
 export async function secret(name: string): Promise<string | null> {
   const hit = cache.get(name);
   if (hit && Date.now() - hit.at < 60_000) return hit.value;
@@ -20,7 +19,6 @@ export async function secret(name: string): Promise<string | null> {
   return value;
 }
 
-// per-game secrets: webhook, open cloud key
 export async function gameSecret(game: number, name: "discord_webhook" | "open_cloud_key"): Promise<string | null> {
   const key = `${game}:${name}`;
   const hit = cache.get(key);
@@ -33,7 +31,6 @@ export async function gameSecret(game: number, name: "discord_webhook" | "open_c
 
 const games = new Map<string, { id: number | null; at: number }>();
 
-// game key -> game id. null when the key isn't ours
 export async function gameForKey(key: string): Promise<number | null> {
   if (!key || key.length > 200) return null;
   const hash = await sha256(key);
@@ -64,7 +61,6 @@ export function sameString(a: string, b: string) {
   return diff === 0;
 }
 
-// calls from our own database (cron, triggers) carry this header
 export async function fromDatabase(req: Request) {
   const key = req.headers.get("x-cron-key") ?? "";
   const expected = await secret("cron_key");

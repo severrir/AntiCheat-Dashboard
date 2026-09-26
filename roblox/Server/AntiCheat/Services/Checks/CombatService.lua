@@ -5,7 +5,6 @@ local Config = require(AC.Settings.Config)
 local Physics = require(AC.Util.Physics)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- your weapon code asks this before applying damage. never trust "i hit him" from the client
 local CombatService = { Name = "ACCombatService" }
 
 local EYE = Vector3.new(0, 1.5, 0)
@@ -32,7 +31,6 @@ function CombatService:_flag(profile, severity, ctx)
 	self._trust:Flag(profile, "Combat", severity, ctx)
 end
 
--- opts: Range, Cooldown, Weapon, LineOfSight (default true)
 function CombatService:ValidateHit(attacker, victim, opts)
 	opts = opts or {}
 	local profile = self._players:Get(attacker)
@@ -41,7 +39,6 @@ function CombatService:ValidateHit(attacker, victim, opts)
 	end
 
 	local targetRoot, targetModel = rootOf(victim)
-	-- nobody can see or reach the bait. hitting it means aimbot or kill aura
 	if targetModel and self._bait:IsBait(targetModel) then
 		self._bait:Tripped(profile, "hit")
 		return false
@@ -57,7 +54,6 @@ function CombatService:ValidateHit(attacker, victim, opts)
 	local weapon = opts.Weapon or "default"
 	local cooldown = opts.Cooldown or 0.3
 	local last = c.last[weapon]
-	-- 15% slack for network jitter
 	if last and now - last < cooldown * 0.85 then
 		self:_flag(profile, 6, { kind = "Cooldown", weapon = weapon, gap = now - last })
 		return false
@@ -70,7 +66,6 @@ function CombatService:ValidateHit(attacker, victim, opts)
 	local offset = targetRoot.Position - origin
 	local dist = offset.Magnitude
 
-	-- the victim kept moving while the packet was in flight
 	local ping = math.min(attacker:GetNetworkPing() * 2, 0.5)
 	local range = (opts.Range or 12) + targetRoot.AssemblyLinearVelocity.Magnitude * ping + 3
 	if dist > range then
@@ -88,14 +83,12 @@ function CombatService:ValidateHit(attacker, victim, opts)
 
 	c.hits += 1
 	c.last[weapon] = now
-	-- shadow mode: the swing counts for their stats, the damage never lands
 	if self._shadow:IsShadowed(attacker) then
 		return false
 	end
 	return true
 end
 
--- call on swings that hit nothing too, otherwise accuracy stats mean nothing
 function CombatService:RecordMiss(attacker)
 	local profile = self._players:Get(attacker)
 	if profile then

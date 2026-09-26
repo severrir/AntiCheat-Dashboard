@@ -1,9 +1,3 @@
-// textures for the replay viewer's avatar: shirt and pants templates, the face/head texture and
-// accessory textures, by roblox image asset id. roblox's own thumbnail service is public but doesn't
-// let browsers read the pixels, so this passes the png through with CORS. it only talks to roblox
-//
-//   ?asset=123  -> that image as a 420x420 png
-
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, OPTIONS",
@@ -29,7 +23,6 @@ Deno.serve(async (req) => {
   ).catch(() => null);
   if (!thumb?.ok) return reply(502, { error: "thumbnails", status: thumb?.status });
   const entry = (await thumb.json())?.data?.[0];
-  // rendered on demand, the viewer asks again in a moment
   if (!entry || entry.state !== "Completed" || typeof entry.imageUrl !== "string") {
     return reply(202, { pending: true, state: entry?.state ?? "missing" });
   }

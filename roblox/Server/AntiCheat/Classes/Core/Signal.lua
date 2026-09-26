@@ -18,7 +18,6 @@ function Signal:Connect(fn)
 	}
 end
 
--- a broken listener shouldn't take the anticheat down with it
 function Signal:Fire(...)
 	for _, fn in self._handlers do
 		local ok, err = pcall(fn, ...)

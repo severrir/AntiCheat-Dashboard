@@ -14,7 +14,6 @@ function jaccard(a: Set<string>, b: Set<string>) {
   return inter / Math.max(1, a.size + b.size - inter)
 }
 
-// kicks whose fingerprints overlap enough end up in the same group. union-find keeps it linear-ish
 function cluster(kicks: Kick[]): Group[] {
   const sets = kicks.map((k) => new Set(k.signature ?? []))
   const parent = kicks.map((_, i) => i)
@@ -34,7 +33,6 @@ function cluster(kicks: Kick[]): Group[] {
   })
   return [...groups.values()]
     .map((list) => {
-      // the traits most of the group share
       const counts = new Map<string, number>()
       for (const k of list) for (const s of new Set(k.signature ?? [])) counts.set(s, (counts.get(s) ?? 0) + 1)
       const sig = [...counts.entries()].filter(([, n]) => n >= Math.ceil(list.length / 2)).sort((a, b) => b[1] - a[1]).map(([s]) => s)

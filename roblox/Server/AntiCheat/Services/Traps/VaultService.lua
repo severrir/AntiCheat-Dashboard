@@ -7,8 +7,6 @@ local Check = require(AC.Classes.Core.Check)
 local TrapZone = require(AC.Classes.Traps.TrapZone)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- a sealed room nobody can reach without noclip or teleporting. being inside it is proof.
--- one is built automatically far from everything, and any part named ACVault becomes another one
 local VaultService = Check.extend({
 	Name = "ACVaultService",
 	Category = "Honeypot",
@@ -74,8 +72,6 @@ function VaultService:_apply()
 	self._zones = zones
 end
 
--- MovementService calls this with the raw position before it snaps anyone back,
--- otherwise a teleport straight in gets undone before we ever look
 function VaultService:Catch(profile, pos)
 	if not self:IsEnabled() then
 		return false
@@ -101,7 +97,6 @@ function VaultService:IsHeadingIn(from, to)
 	return false
 end
 
--- covers anyone movement isn't judging right now (exempt, seated, movement switched off)
 function VaultService:Step(profile)
 	local root = profile.root
 	if root and root.Parent then

@@ -6,7 +6,6 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local B = Config.Backend
 
--- mission control feed: where everyone is, every few seconds. also the fast lane for dashboard commands
 local PulseService = { Name = "ACPulseService" }
 
 local function round(n)
@@ -64,7 +63,6 @@ function PulseService:Start()
 	task.spawn(function()
 		while true do
 			task.wait(B.PulseInterval)
-			-- nobody here, nothing to show
 			local wanted = Config.On("MissionControl") or Config.On("Spectator") or Config.On("Replays")
 			if #self._players:List() > 0 and wanted then
 				self:Beat()

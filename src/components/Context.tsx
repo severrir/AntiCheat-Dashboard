@@ -1,4 +1,3 @@
-// flag context straight from the game. rendered as text only, never html
 export function Context({ ctx }: { ctx: Record<string, string | number | boolean> | null }) {
   const entries = Object.entries(ctx ?? {}).slice(0, 8)
   if (entries.length === 0) return <span />

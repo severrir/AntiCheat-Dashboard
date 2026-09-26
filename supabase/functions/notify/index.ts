@@ -1,8 +1,5 @@
 import { db, fromDatabase, gameSecret, json } from "../_shared/util.ts";
 
-// the database pings this whenever a ban changes. it publishes straight into every live
-// roblox server through open cloud messaging, so bans land in about a second
-
 const ID_RE = /^[1-9][0-9]{0,18}$/;
 
 Deno.serve(async (req) => {
@@ -20,13 +17,11 @@ Deno.serve(async (req) => {
     return json(400, { error: "payload" });
   }
 
-  // each game has its own universe and its own open cloud key
   const [key, { data: g }] = await Promise.all([
     gameSecret(game, "open_cloud_key"),
     db.from("games").select("universe_id").eq("id", game).maybeSingle(),
   ]);
   const universe = g?.universe_id ? String(g.universe_id) : null;
-  // no key means relay-only mode, servers still pick bans up on their next sync
   if (!key || !universe) return json(200, { sent: false, reason: "no open cloud key" });
 
   const message = JSON.stringify({

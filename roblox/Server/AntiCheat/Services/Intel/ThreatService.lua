@@ -4,7 +4,6 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- one number per server for mission control: 0 calm, 1 watch, 2 alert, 3 under attack
 local ThreatService = { Name = "ACThreatService" }
 
 local MAX_FLAGS = 500
@@ -50,7 +49,6 @@ function ThreatService:Start()
 	self._players = Framework.Get("ACPlayerService")
 	Framework.Get("ACTrustService").Flagged:Connect(function()
 		table.insert(self._flags, os.clock())
-		-- a flood of flags shouldn't grow this forever
 		if #self._flags > MAX_FLAGS then
 			table.remove(self._flags, 1)
 		end

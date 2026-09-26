@@ -1,4 +1,3 @@
--- ===== games: one dashboard, many experiences. every row now belongs to a game =====
 create table public.games (
   id integer generated always as identity primary key,
   name text not null check (length(name) between 1 and 40),
@@ -8,13 +7,11 @@ create table public.games (
 );
 create unique index games_guild_idx on public.games (discord_guild) where discord_guild is not null;
 
--- the game key is how a server says which game it belongs to. only its hash is kept
 create table private.game_keys (
   game_id integer primary key references public.games (id) on delete cascade,
   key_sha256 text not null unique
 );
 
--- webhook, open cloud key: per game, write only
 create table private.game_secrets (
   game_id integer not null references public.games (id) on delete cascade,
   key text not null,
@@ -22,7 +19,6 @@ create table private.game_secrets (
   primary key (game_id, key)
 );
 
--- staff who only see some games. owner and admins see everything
 create table public.game_staff (
   game_id integer not null references public.games (id) on delete cascade,
   user_id uuid not null references public.dashboard_users (user_id) on delete cascade,
@@ -34,7 +30,6 @@ alter table public.dashboard_users drop constraint dashboard_users_role_check;
 alter table public.dashboard_users add constraint dashboard_users_role_check
   check (role in ('owner','admin','staff','pending'));
 
--- the existing game becomes game 1, with the key, webhook and open cloud key it already had
 insert into public.games (id, name, universe_id)
 overriding system value
 select 1, 'Main game', nullif((select value from private.secrets where key = 'universe_id'), '')::bigint;
@@ -48,7 +43,6 @@ select 1, key, value from private.secrets where key in ('discord_webhook', 'open
 
 delete from private.secrets where key in ('game_key_sha256', 'discord_webhook', 'open_cloud_key', 'universe_id');
 
--- ===== config per game =====
 alter table public.config drop constraint config_id_check;
 alter table public.config add column game_id integer references public.games (id) on delete cascade;
 update public.config set game_id = 1;
@@ -57,7 +51,6 @@ alter table public.config drop column id;
 alter table public.config alter column game_id set not null;
 alter table public.config add primary key (game_id);
 
--- ===== game_id on everything =====
 do $$
 declare
   t text;
@@ -93,7 +86,6 @@ create index replays_user_idx on public.replays (game_id, user_id, created_at de
 create index appeals_status_idx on public.appeals (game_id, status, created_at desc);
 create index servers_game_idx on public.servers (game_id);
 
--- ===== shadow mode =====
 alter table public.players
   add column shadowed boolean not null default false,
   add column shadow_by text,
@@ -111,7 +103,6 @@ alter table public.commands drop constraint commands_kind_check;
 alter table public.commands add constraint commands_kind_check
   check (kind in ('spectate','replay','kick','shadow','unshadow'));
 
--- ===== in-game reports =====
 create table public.reports (
   id bigint generated always as identity primary key,
   game_id integer not null references public.games (id) on delete cascade,
@@ -133,7 +124,6 @@ create index reports_open_idx on public.reports (game_id, status, created_at des
 create index reports_target_idx on public.reports (game_id, target_id, created_at desc);
 create index reports_reporter_idx on public.reports (game_id, reporter_id, created_at desc);
 
--- ===== what players gained, so a ban can take it back =====
 create table public.ledger (
   id bigint generated always as identity primary key,
   game_id integer not null references public.games (id) on delete cascade,
@@ -165,7 +155,6 @@ create table public.reverts (
 create index reverts_pending_idx on public.reverts (game_id, status, created_at) where status in ('pending','sent');
 create index reverts_user_idx on public.reverts (game_id, user_id, created_at desc);
 
--- ===== who can see which game =====
 create or replace function private.my_games() returns integer[]
 language sql stable security definer set search_path = '' as $$
   select case
@@ -191,7 +180,6 @@ begin
 end;
 $$;
 
--- "mission:3" -> 3, anything else -> null
 create or replace function private.topic_game(t text) returns integer
 language sql immutable set search_path = '' as $$
   select case when t ~ '^mission:[0-9]{1,9}$' then split_part(t, ':', 2)::integer end;

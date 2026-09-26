@@ -4,7 +4,6 @@ import { defineConfig, type Plugin } from 'vite'
 
 const SUPABASE = 'kapvjoemzsdqiealluzl.supabase.co'
 
-// only in the production build, vite's dev server needs inline scripts
 const csp: Plugin = {
   name: 'csp',
   apply: 'build',
@@ -26,7 +25,6 @@ const csp: Plugin = {
   },
 }
 
-// relative so it works under any repo name on github pages (routing is all in the hash)
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss(), csp],

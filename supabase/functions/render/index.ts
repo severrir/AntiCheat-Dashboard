@@ -2,8 +2,6 @@ import { replayPng } from "../_shared/draw.ts";
 import type { ReplayEvent, Sample } from "../_shared/caseFile.ts";
 import { db, sameString } from "../_shared/util.ts";
 
-// top-down picture of a replay for discord embeds. public url, but only with the replay's random token
-
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const id = Number(url.searchParams.get("id"));

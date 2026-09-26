@@ -1,7 +1,5 @@
 local CollectionService = game:GetService("CollectionService")
 
--- an invisible humanoid parked next to one suspect. nobody can see, touch or raycast it,
--- so the only way to "hit" it is a kill aura / silent aim naming it in a hit remote
 local BaitDummy = {}
 BaitDummy.__index = BaitDummy
 
@@ -41,7 +39,6 @@ function BaitDummy.new(owner)
 	hum.Health = math.huge
 	hum.Parent = model
 
-	-- your own npc ai can skip anything tagged ACBait
 	CollectionService:AddTag(model, "ACBait")
 	model:SetAttribute("ACBait", true)
 	for _, d in model:GetDescendants() do
@@ -52,7 +49,6 @@ function BaitDummy.new(owner)
 	return setmetatable({ owner = owner, model = model }, BaitDummy)
 end
 
--- a new random spot beside them every time, just out of arm's reach
 function BaitDummy:MoveNear(position)
 	local angle = math.random() * math.pi * 2
 	self.model:PivotTo(CFrame.new(position + Vector3.new(math.cos(angle) * OFFSET, 0, math.sin(angle) * OFFSET)))

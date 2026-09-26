@@ -1,6 +1,3 @@
--- ban / unban / shadow live in one place. the dashboard calls them through admin_*, the
--- discord bot (service role) through bot_*, so both close reports and queue undo the same way
-
 create or replace function private.do_ban(g integer, uid bigint, p_reason text, p_hours integer, who text)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -33,7 +30,6 @@ begin
   where game_id = g and user_id = uid and active;
   if not found then return false; end if;
   insert into public.actions (game_id, user_id, action, reason, actor) values (g, uid, 'unban', coalesce(why, ''), who);
-  -- an undo that hasn't run yet shouldn't punish someone we just cleared
   update public.reverts set status = 'failed', result = 'cancelled by unban'
   where game_id = g and user_id = uid and status in ('pending', 'sent');
   return true;
@@ -50,7 +46,6 @@ begin
     shadowed = p_on,
     shadow_by = case when p_on then who end,
     shadowed_at = case when p_on then now() end;
-  -- live servers flip it within a pulse, everyone else gets it on join
   update public.commands set status = 'expired'
   where game_id = g and target_user = uid and kind in ('shadow', 'unshadow') and status in ('pending', 'sent');
   insert into public.commands (game_id, kind, target_user, created_by)

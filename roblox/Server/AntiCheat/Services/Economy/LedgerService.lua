@@ -5,12 +5,6 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- a record of what every player gained: currency, items, kills, and who it came from.
--- when someone gets banned, RevertService takes it back out of that record.
--- your game asks here before giving anything, so a shadowed player's earnings can be held:
---
---   local coins = AntiCheat.Grant(player, "Coins", 100, "quest")   -- 0 while shadowed
---   profile.Coins += coins
 local LedgerService = { Name = "ACLedgerService" }
 
 local function userIdOf(who)
@@ -32,7 +26,6 @@ function LedgerService:_held(player)
 	return typeof(player) == "Instance" and self._shadow:IsShadowed(player)
 end
 
--- returns how much to actually give. spending isn't a gain, so only positive amounts are recorded
 function LedgerService:Grant(player, key, amount, source)
 	local userId = userIdOf(player)
 	key = cleanKey(key)
@@ -47,7 +40,6 @@ function LedgerService:Grant(player, key, amount, source)
 	return if held then 0 else amount
 end
 
--- true = go ahead and give the item
 function LedgerService:GrantItem(player, item, source)
 	local userId = userIdOf(player)
 	item = cleanKey(item)
@@ -66,9 +58,6 @@ function LedgerService:RecordKill(killer, victim)
 	end
 end
 
--- something moved from one player to another (a trade, a steal, a duel pot).
--- recorded as a gain for `to` with `from` as the victim, so an undo can hand it back.
--- what is a number for currency, or an item name with amount = nil
 function LedgerService:Transfer(from, to, what, amount)
 	local fromId, toId = userIdOf(from), userIdOf(to)
 	local key = cleanKey(what)
@@ -87,7 +76,6 @@ function LedgerService:Start()
 	self._backend = Framework.Get("ACBackendService")
 	self._shadow = Framework.Get("ACShadowService")
 
-	-- games that only use leaderstats get the ledger for free. these were really given, so never "held"
 	if not Config.AutoLeaderstats then
 		return
 	end

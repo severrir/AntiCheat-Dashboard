@@ -3,7 +3,6 @@ import { supabase, type Appeal, type Ban, type Player } from '../lib/supabase'
 import { ago, errorText } from '../lib/format'
 import { Button, Empty, Panel } from '../components/ui'
 
-// staff side: every open appeal next to the ban reason and the player's latest replay
 export function Appeals({ appeals, bans, players, open, openReplay }: {
   appeals: Appeal[]
   bans: Ban[]
@@ -93,11 +92,11 @@ function AppealCard({ appeal, ban, player, open, openReplay }: {
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg bg-panel-2 p-3">
-            <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-muted">Their side</div>
+            <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-muted">Appeal</div>
             <p className="whitespace-pre-wrap text-sm">{appeal.message}</p>
           </div>
           <div className="rounded-lg bg-panel-2 p-3 text-sm">
-            <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-muted">The record</div>
+            <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-muted">History</div>
             <p>Ban reason: {ban?.reason || '—'}</p>
             <p className="text-muted">
               Banned by {ban?.banned_by ?? '?'}
@@ -137,7 +136,6 @@ function AppealCard({ appeal, ban, player, open, openReplay }: {
 
 type Mine = { id: number; user_id: number; username: string; game: string; status: string; note: string; created_at: string; decided_at: string | null }
 
-// public side: anyone signed in with discord can appeal a ban
 export function AppealForm() {
   const [player, setPlayer] = useState('')
   const [message, setMessage] = useState('')

@@ -4,11 +4,10 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local PlayerProfile = require(AC.Classes.Player.PlayerProfile)
 local Signal = require(AC.Classes.Core.Signal)
 
--- one PlayerProfile per player, created on join. every other service reads profiles through here
 local PlayerService = {
 	Name = "ACPlayerService",
-	Added = Signal.new(), -- (profile)
-	Removing = Signal.new(), -- (profile)
+	Added = Signal.new(),
+	Removing = Signal.new(),
 }
 
 function PlayerService:Init()
@@ -25,12 +24,10 @@ function PlayerService:GetById(userId)
 	return player and self._byPlayer[player]
 end
 
--- dense array for the scheduler, swap-remove keeps it that way
 function PlayerService:List()
 	return self._list
 end
 
--- waits a moment for the profile, join handlers can race PlayerAdded
 function PlayerService:Await(player, timeout)
 	local deadline = os.clock() + (timeout or 5)
 	while not self._byPlayer[player] and player.Parent and os.clock() < deadline do

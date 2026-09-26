@@ -1,5 +1,3 @@
--- a character's body parts, their rest pose and colors, so a replay can move the real avatar
--- limb by limb. the server sees animations (they replicate), so what we record is what others saw
 local Rig = {}
 Rig.__index = Rig
 
@@ -11,16 +9,12 @@ local function color(c)
 	return math.floor(c.R * 255) * 65536 + math.floor(c.G * 255) * 256 + math.floor(c.B * 255)
 end
 
--- "rbxassetid://123", "http://www.roblox.com/asset/?id=123" -> 123
 local function assetId(s)
 	return type(s) == "string" and tonumber(string.match(s, "(%d+)%D*$")) or nil
 end
 
 local MAX_ACCESSORIES = 12
 
--- the two parts a joint connects and the offsets on each side. old rigs use Motor6D (C0/C1),
--- newer ones use AnimationConstraint between two attachments. either way the rest pose is
--- part1 = part0 * c0 * c1:Inverse()
 local function joint(d)
 	if d:IsA("Motor6D") then
 		return d.Part0, d.Part1, d.C0, d.C1
@@ -35,8 +29,6 @@ local function joint(d)
 	return nil
 end
 
--- which body part an accessory handle is stuck to: an AccessoryWeld on older rigs,
--- a RigidConstraint on newer ones
 local function attachedTo(handle)
 	for _, d in handle:GetChildren() do
 		local other
@@ -59,8 +51,6 @@ local function attachedTo(handle)
 	return nil
 end
 
--- classic clothing is folded onto the body in the viewer. accessories become simple shapes in their
--- texture's color: their meshes can't be downloaded without a roblox login
 local function looks(char)
 	local shirt = char:FindFirstChildOfClass("Shirt")
 	local pants = char:FindFirstChildOfClass("Pants")
@@ -94,7 +84,6 @@ local function looks(char)
 					o = { r2(off.X), r2(off.Y), r2(off.Z), r2(rx), r2(ry), r2(rz) },
 					c = color(handle.Color),
 					t = assetId(tex),
-					-- layered clothing wraps the body, a shape for it would hide the shirt underneath
 					w = handle:FindFirstChildOfClass("WrapLayer") ~= nil or nil,
 				})
 			end
@@ -103,7 +92,6 @@ local function looks(char)
 	return clothes, acc
 end
 
--- every part hung off the root through its joints: 15 for R15, 6 for R6. accessories ride along on their limb
 function Rig.fromCharacter(char, root)
 	local rest = { [root] = CFrame.identity }
 	local joints = {}
@@ -113,7 +101,6 @@ function Rig.fromCharacter(char, root)
 			table.insert(joints, { p0, p1, c0, c1 })
 		end
 	end
-	-- walk the joint tree outwards from the root, joint by joint, ignoring the animation
 	local progressed = true
 	while progressed do
 		progressed = false
@@ -167,7 +154,6 @@ function Rig.fromCharacter(char, root)
 	}, Rig)
 end
 
--- flat list, 6 numbers per limb in `info.parts` order: offset from the root, then XYZ euler angles
 function Rig:Pose()
 	local rootCF = self.root.CFrame
 	local out = table.create(#self.limbs * 6)
@@ -182,7 +168,6 @@ function Rig:Pose()
 			table.insert(out, r2(ry))
 			table.insert(out, r2(rz))
 		else
-			-- limb gone (deleted, blown off): park it at the root
 			for _ = 1, 6 do
 				table.insert(out, 0)
 			end

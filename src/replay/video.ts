@@ -1,4 +1,3 @@
-// records the 3D view to a video file, straight from the canvas. mp4 where the browser can, webm otherwise
 const TYPES = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
 
 export function videoSupported() {

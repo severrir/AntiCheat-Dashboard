@@ -115,7 +115,6 @@ create policy "admins read actions" on public.actions for select to authenticate
 create policy "admins read bans" on public.bans for select to authenticated using ((select private.is_admin()));
 create policy "admins read config" on public.config for select to authenticated using ((select private.is_admin()));
 
--- first discord login becomes owner, everyone after waits for approval
 create or replace function private.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -177,7 +176,6 @@ begin
 end;
 $$;
 
--- only known keys, only numbers, clamped. anything else gets dropped
 create or replace function public.admin_set_thresholds(p_thresholds jsonb)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare

@@ -44,7 +44,7 @@ function Suggestions({ config, reload }: { config: Config | null; reload: () => 
   }
 
   return (
-    <Panel title="Learned from your decisions">
+    <Panel title="Suggestions">
       <div className="p-4">
         <p className="mb-3 max-w-3xl text-sm text-muted">
           Every ban you keep is a confirmed cheater, and every unban or approved appeal is a mistake. The system checks which checks
@@ -84,7 +84,6 @@ function Suggestions({ config, reload }: { config: Config | null; reload: () => 
 
 type Settings = { KickScore: number; HalfLife: number; MinCorroboratingChecks: number } & Record<string, number>
 
-// replays the last 30 days of real flags through the same scoring rules the game uses
 function simulate(rows: Row[], s: Settings, oldWeights: Record<string, number>) {
   const byUser = new Map<number, Row[]>()
   for (const r of rows) {
@@ -111,7 +110,6 @@ function simulate(rows: Row[], s: Settings, oldWeights: Record<string, number>) 
       const breakdown = [...parts.entries()].map(([check, p]) => ({ check, value: decay(p.v, p.at, now) })).sort((a, b) => b.value - a.value)
       const proof = breakdown.some((b) => b.check === 'Honeypot' && b.value >= s.KickScore * 0.5)
       const distinct = breakdown.filter((b) => b.value >= s.KickScore * 0.1).length
-      // movement proves itself through forensic replay in game, assume it would confirm
       if (proof || breakdown[0].check === 'Movement' || distinct >= s.MinCorroboratingChecks) {
         kicked.add(uid)
         break
@@ -197,7 +195,7 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
   )
 
   return (
-    <Panel title="What if…" right={<span className="text-xs text-muted">last 30 days of real flags, replayed</span>}>
+    <Panel title="Try new settings" right={<span className="text-xs text-muted">against the last 30 days of flags</span>}>
       <div className="grid gap-6 p-4 lg:grid-cols-2">
         <div className="space-y-2">
           {slider('KickScore', 'Kick score', 40, 300, 5)}

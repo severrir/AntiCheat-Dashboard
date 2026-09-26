@@ -7,20 +7,17 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds
 
--- every check reports here. checks never punish anyone themselves
 local TrustService = {
 	Name = "ACTrustService",
-	Flagged = Signal.new(), -- (player, check, amount, score, ctx)
+	Flagged = Signal.new(),
 }
 
--- short text that says "how" they cheated, used to spot the same exploit tool across kicks
 local function detailOf(ctx)
 	if type(ctx) ~= "table" then
 		return nil
 	end
 	if type(ctx.speed) == "number" and type(ctx.allowed) == "number" and ctx.allowed > 0 then
 		local ratio = ctx.speed / ctx.allowed
-		-- teleport ratios are basically random, bucket them or no two kicks ever match
 		if ratio >= 10 then
 			return "x10+"
 		end
@@ -35,7 +32,6 @@ local function detailOf(ctx)
 	return nil
 end
 
--- target is a Player or a PlayerProfile
 function TrustService:Flag(target, check, severity, ctx)
 	local profile = if typeof(target) == "Instance" then self._players:Get(target) else target
 	if not profile or profile.immune or profile.kicked then

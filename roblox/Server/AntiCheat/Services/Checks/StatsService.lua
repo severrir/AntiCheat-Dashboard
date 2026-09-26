@@ -7,8 +7,6 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds
 
--- compares players against their own history instead of one global number.
--- games can feed it anything through the API: reaction time, aim snap angle, clicks per second...
 local StatsService = Check.extend({
 	Name = "ACStatsService",
 	Category = "Statistical",
@@ -25,7 +23,6 @@ function StatsService:OnStart()
 	self._players = Framework.Get("ACPlayerService")
 end
 
--- welford, so no samples are stored
 function StatsService:Record(player, name, value, lowerIsSuspicious)
 	if not self:IsEnabled() then
 		return
@@ -56,7 +53,6 @@ function StatsService:Record(player, name, value, lowerIsSuspicious)
 				z = -z
 			end
 			if z > Z_LIMIT then
-				-- one weird sample is nothing, a streak is something. and don't learn from it
 				s.strikes += 1
 				if s.strikes >= 3 then
 					s.strikes = 0

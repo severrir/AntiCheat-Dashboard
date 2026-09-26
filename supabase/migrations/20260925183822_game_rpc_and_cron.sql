@@ -1,4 +1,3 @@
--- service role only. the edge function uses these, nobody else can
 create or replace function public.game_secret(p_name text) returns text
 language sql stable security definer set search_path = '' as $$
   select value from private.secrets

@@ -6,9 +6,6 @@ local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 local Net = require(ReplicatedStorage.Shared.Net)
 
--- invisible spectator for admins: /spectate, F8, or "spectate" on the dashboard (which even
--- teleports you into the right server). your character is hidden, the camera follows the suspect.
--- the client side is ACSpectatorController
 local SpectatorService = { Name = "ACSpectatorService" }
 
 local HIDE_AT = CFrame.new(-6000, 400, 6000)
@@ -45,7 +42,7 @@ local function hide(admin)
 end
 
 function SpectatorService:Init()
-	self._watching = {} -- admin -> { target = userId }
+	self._watching = {}
 	self.Admin = Net.Event("ACAdmin")
 	self.State = Net.Event("ACSpectateState")
 	self.Action = Net.Event({ name = "ACAdminAction", cooldown = 0.2 }):Expect("string", "number")
@@ -126,7 +123,6 @@ function SpectatorService:_cycle(admin, dir)
 	self:_push(admin)
 end
 
--- saves the admin's own last 20s as a known-legit session for the test suite
 function SpectatorService:_record(admin)
 	local profile = self._players:Get(admin)
 	local recording = profile and self._recorder:Capture(profile, "session", "recorded by " .. admin.Name)
@@ -158,16 +154,13 @@ function SpectatorService:_onJoin(player)
 	if not isAdmin(player) then
 		return
 	end
-	-- keep a spectating admin hidden across respawns
 	player.CharacterAdded:Connect(function()
 		if self._watching[player] then
 			task.defer(hide, player)
 		end
 	end)
-	-- lets the client build the admin panel. everything it sends is still checked here
 	self.Admin:Fire(player, { spectator = Config.On("Spectator") })
 
-	-- came in through the dashboard's spectate button from another server
 	local data = player:GetJoinData()
 	local teleport = data and data.TeleportData
 	local target = type(teleport) == "table" and tonumber(teleport.acSpectate)

@@ -8,8 +8,6 @@ local Net = require(ReplicatedStorage.Shared.Net)
 
 local T = Config.Thresholds
 
--- server half of the client detector (ACHeartbeatController). anything a client says can be faked,
--- so this is a low weight hint. the useful part: if the heartbeat stops, someone killed the script
 local ClientCheckService = Check.extend({
 	Name = "ACClientCheckService",
 	Category = "Client",
@@ -20,7 +18,6 @@ local ClientCheckService = Check.extend({
 local JOIN_GRACE = 30
 
 function ClientCheckService:Init()
-	-- client beats every 5s, the cooldown only stops floods
 	self.Beat = Net.Event({ name = "ACBeat", cooldown = 1 }):Expect("number", "table")
 end
 
@@ -44,7 +41,6 @@ function ClientCheckService:_onBeat(player, seq, report)
 	c.seq = seq
 	c.lastBeat = os.clock()
 
-	-- a value the server just changed can still be in flight, so it has to be wrong twice in a row
 	local strikes = c.strikes
 	local function mismatch(kind, bad, ctx)
 		if bad then
@@ -63,7 +59,6 @@ function ClientCheckService:_onBeat(player, seq, report)
 		local ws = report.ws
 		mismatch("LocalWalkSpeed", type(ws) == "number" and ws > hum.WalkSpeed + 0.5, { client = ws, server = hum.WalkSpeed })
 
-		-- launch speed, so flipping UseJumpPower on the client doesn't hide a boost
 		local jump = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
 		local reported = report.jv
 		mismatch("LocalJump", type(reported) == "number" and reported > jump + 1, { client = reported, server = jump })

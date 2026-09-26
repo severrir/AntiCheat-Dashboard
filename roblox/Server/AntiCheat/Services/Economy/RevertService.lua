@@ -4,22 +4,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AC = script:FindFirstAncestor("AntiCheat")
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
---[[
-	undo jobs from the backend: when someone is banned, what they gained since they started
-	cheating comes here, and any server of the game can run it (they're usually offline by then).
-
-	AntiCheat.OnRevert(function(userId, summary)
-		-- summary.currency = { Coins = 5400 }        take these back
-		-- summary.items    = { ["Golden Sword"] = 2 } and these
-		-- summary.kills    = 37                       leaderboard kills to remove
-		-- summary.victims  = { ["123"] = { kills = 3, currency = { Coins = 200 }, items = { Gem = 1 } } }
-		--                                             what they took from whom, give it back if you like
-		-- your DataStore code goes here. return true, or false + a note for the dashboard
-		return true
-	end)
-
-	with no handler set, it still takes leaderstats back from players who are online in this server
-]]
 local RevertService = { Name = "ACRevertService" }
 
 function RevertService:Init()
@@ -32,7 +16,6 @@ function RevertService:OnRevert(fn)
 	self._handler = fn
 end
 
--- the fallback: online player with leaderstats
 local function fromLeaderstats(userId, summary)
 	local player = Players:GetPlayerByUserId(userId)
 	local stats = player and player:FindFirstChild("leaderstats")

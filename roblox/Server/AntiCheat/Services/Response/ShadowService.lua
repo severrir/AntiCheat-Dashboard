@@ -8,16 +8,12 @@ local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds
 
--- shadow mode: a suspect keeps playing like nothing happened, but their hits do nothing
--- (CombatService) and their earnings are held back (LedgerService), while every check keeps
--- collecting proof. "auto" comes from the score, "staff" from the dashboard or discord.
--- staff-shadowed players don't get auto-kicked, someone asked to watch them
 local ShadowService = Check.extend({
 	Name = "ACShadowService",
 	Category = "Shadow",
 	Feature = "ShadowMode",
 	Rate = "cold",
-	Changed = Signal.new(), -- (player, on, by)
+	Changed = Signal.new(),
 })
 
 function ShadowService:IsShadowed(player)
@@ -28,7 +24,6 @@ function ShadowService:IsShadowed(player)
 	return profile ~= nil and profile.shadow ~= nil
 end
 
--- by: "auto" or "staff". quiet = it came from the backend, don't report it back
 function ShadowService:Set(profile, by, why, quiet)
 	if profile.immune or profile.shadow == by then
 		return
@@ -41,7 +36,6 @@ function ShadowService:Set(profile, by, why, quiet)
 	if not quiet then
 		self._backend:QueueShadow(profile, true, why or "", by)
 	end
-	-- the moment they cross the line is the best evidence there is
 	if not was and not quiet and Config.On("Replays") then
 		local recording = self._recorder:Capture(profile, "capture", "shadowed: " .. (why or by))
 		self._backend:Track(function()
@@ -55,7 +49,6 @@ function ShadowService:Clear(profile, quiet)
 		return
 	end
 	profile.shadow = nil
-	-- a human cleared them, don't slam them straight back in on the next score tick
 	profile.shadowCleared = true
 	self.Changed:Fire(profile.player, false, nil)
 	if not quiet then
@@ -83,7 +76,6 @@ function ShadowService:OnStart()
 	self._backend = Framework.Get("ACBackendService")
 	self._recorder = Framework.Get("ACRecorderService")
 
-	-- shadow mode follows them into every server
 	Framework.Get("ACBanService").JoinChecked:Connect(function(player, res)
 		if res.shadow ~= true then
 			return

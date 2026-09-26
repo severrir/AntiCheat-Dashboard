@@ -6,21 +6,16 @@ local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
--- sends a low-detail copy of the map so replays play on the real place: every part with its shape,
--- color, material and transparency, a terrain heightmap with roblox's own terrain colors, and the
--- lighting (time of day, fog, sun). only the first server of each place version does it
 local MapExportService = { Name = "ACMapExportService" }
 
-local FORMAT = "v2" -- bump when the encoding changes, so every place re-uploads
+local FORMAT = "v2"
 local MAX_PARTS = 12000
 local CHUNK = 1500
-local TERRAIN_CELLS = 160 -- per side, at most
-local TERRAIN_CHUNK = 3000 -- cells per upload
+local TERRAIN_CELLS = 160
+local TERRAIN_CHUNK = 3000
 
--- viewer shape codes: 0 block, 1 ball, 2 cylinder, 3 wedge, 4 mesh/union (drawn as its box), 5 corner wedge, 6 truss
 local SHAPES = { Block = 0, Ball = 1, Cylinder = 2, Wedge = 3, CornerWedge = 5 }
 
--- materials the viewer draws differently. everything else is plain plastic
 local MATERIALS = {
 	[Enum.Material.Neon] = 1,
 	[Enum.Material.Glass] = 2,
@@ -51,7 +46,6 @@ local MATERIALS = {
 	[Enum.Material.SmoothPlastic] = 12,
 }
 
--- terrain materials by index, colors come from the place itself
 local TERRAIN = {
 	Enum.Material.Grass, Enum.Material.LeafyGrass, Enum.Material.Sand, Enum.Material.Rock, Enum.Material.Slate,
 	Enum.Material.Ground, Enum.Material.Mud, Enum.Material.Snow, Enum.Material.Ice, Enum.Material.Glacier,
@@ -86,7 +80,6 @@ local function collect()
 			table.insert(parts, d)
 		end
 	end
-	-- big stuff first, if we have to cut, cut the tiny props
 	table.sort(parts, function(a, b)
 		local sa, sb = a.Size, b.Size
 		return sa.X * sa.Y * sa.Z > sb.X * sb.Y * sb.Z
@@ -110,7 +103,6 @@ local function shapeOf(part)
 	return 4
 end
 
--- [x, y, z, sx, sy, sz, rx, ry, rz, color, shape, material, transparency%]
 local function encode(part)
 	local p, s = part.Position, part.Size
 	local rx, ry, rz = part.CFrame:ToEulerAnglesXYZ()
@@ -140,8 +132,6 @@ local function sky()
 	}
 end
 
--- top of the terrain every few studs, found with raycasts spread over many frames.
--- returns meta + rows of heights (ground under any water), water surface, material index
 local function terrainGrid()
 	local terrain = workspace.Terrain
 	local ok, cells = pcall(terrain.CountCells, terrain)
@@ -151,7 +141,6 @@ local function terrainGrid()
 	local ext = terrain.MaxExtents
 	local minV = Vector3.new(ext.Min.X, ext.Min.Y, ext.Min.Z) * 4
 	local maxV = Vector3.new(ext.Max.X, ext.Max.Y, ext.Max.Z) * 4
-	-- empty extents come back enormous, clamp to something sane
 	minV = minV:Max(Vector3.one * -8192)
 	maxV = maxV:Min(Vector3.one * 8192)
 	local span = math.max(maxV.X - minV.X, maxV.Z - minV.Z)
@@ -233,7 +222,6 @@ function MapExportService:Version()
 	return self._version
 end
 
--- used by bait coins to find "way above the map"
 function MapExportService:Bounds()
 	return self._bounds
 end
@@ -281,7 +269,6 @@ end
 function MapExportService:Start()
 	self._backend = Framework.Get("ACBackendService")
 
-	-- give the place a moment to finish loading
 	task.delay(5, function()
 		local parts = collect()
 		local minV, maxV = Vector3.one * math.huge, -Vector3.one * math.huge
@@ -292,7 +279,6 @@ function MapExportService:Start()
 		if #parts > 0 then
 			self._bounds = { min = minV, max = maxV }
 		end
-		-- the version is known before the slow terrain scan, so replays taken meanwhile still match
 		local okCells, cells = pcall(workspace.Terrain.CountCells, workspace.Terrain)
 		local hasTerrain = okCells and cells > 0
 		self._version = string.format("%d-%d-%s%s", game.PlaceVersion, #parts, FORMAT, if hasTerrain then "t" else "")

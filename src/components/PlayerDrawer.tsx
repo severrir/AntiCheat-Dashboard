@@ -33,7 +33,6 @@ const UNDO_WINDOWS = [
   { label: 'last 7 days', hours: 168 },
 ]
 
-// what they gained in the last week, added up per thing
 function gains(rows: LedgerRow[]) {
   const out = new Map<string, { label: string; amount: number; held: number }>()
   for (const r of rows) {
@@ -107,7 +106,6 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
   const banned = ban?.active && (!ban.expires_at || new Date(ban.expires_at).getTime() > Date.now())
   const online = player ? isOnline(player.last_seen) : false
 
-  // these go into whichever live server the player is on, through the next pulse (~5s)
   async function command(kind: 'replay' | 'spectate' | 'kick') {
     setCmdMsg('')
     const { error } = await supabase.rpc('admin_command', { p_game: game, p_kind: kind, p_target: userId })
@@ -224,8 +222,8 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
 
           {online && (
             <section className="flex flex-wrap items-center gap-2">
-              <Button tone="accent" onClick={() => command('spectate')}>👁 Spectate</Button>
-              <Button onClick={() => command('replay')}>⏺ Capture replay</Button>
+              <Button tone="accent" onClick={() => command('spectate')}>Spectate</Button>
+              <Button onClick={() => command('replay')}>Record replay</Button>
               <Button tone="danger" onClick={() => command('kick')}>Kick</Button>
               {cmdMsg && <span className="w-full text-xs text-muted">{cmdMsg}</span>}
             </section>

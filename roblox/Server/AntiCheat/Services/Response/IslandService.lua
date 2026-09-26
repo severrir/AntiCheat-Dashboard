@@ -6,8 +6,6 @@ local TeleportService = game:GetService("TeleportService")
 local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 
--- cheater island: instead of a kick, cheaters get sent to one private server full of other cheaters.
--- off by default, flip it in the dashboard. needs a published game, studio just kicks like normal
 local IslandService = { Name = "ACIslandService" }
 
 local STORE = "AC_Island"
@@ -38,7 +36,6 @@ function IslandService:_load()
 		return
 	end
 
-	-- first time: reserve the island and remember it for every server
 	local ok3, newCode, privateId = pcall(TeleportService.ReserveServer, TeleportService, game.PlaceId)
 	if not ok3 then
 		return
@@ -53,7 +50,6 @@ function IslandService:_load()
 	end)
 end
 
--- returns right away. true means we're handling it (teleport started), false means kick them
 function IslandService:Send(player)
 	if RunService:IsStudio() or self._isIsland or not self._code or not Config.On("CheaterIsland") then
 		return false
@@ -76,7 +72,6 @@ function IslandService:Start()
 		return
 	end
 	task.spawn(self._load, self)
-	-- if the island got switched on later, reserve it then
 	Config.Changed:Connect(function()
 		if Config.On("CheaterIsland") and not self._code then
 			task.spawn(self._load, self)

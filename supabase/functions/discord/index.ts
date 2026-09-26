@@ -3,9 +3,6 @@ import { db, fromDatabase, json, playerLink, renderLink, replayLink, secret } fr
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
-// discord slash commands: /check /ban /unban /replay /shadow. only dashboard staff of the game
-// linked to this discord server can use them. discord signs every request, anything unsigned is dropped
-
 const API = "https://discord.com/api/v10";
 const EPHEMERAL = 64;
 
@@ -55,7 +52,6 @@ async function verify(req: Request, body: string) {
   const ts = req.headers.get("x-signature-timestamp") ?? "";
   const pub = await secret("discord_public_key");
   if (!pub || !/^[0-9a-f]{128}$/.test(sig) || !/^\d{1,12}$/.test(ts)) return false;
-  // old signed requests can't be replayed later
   if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
   try {
     const key = await crypto.subtle.importKey("raw", hex(pub), { name: "Ed25519" }, false, ["verify"]);
@@ -89,7 +85,6 @@ async function registerCommands() {
 type Staff = { name: string };
 type Game = { id: number; name: string };
 
-// a discord server linked to a game uses that game. with only one game there's nothing to pick
 async function gameFor(guild: string | undefined): Promise<Game | null> {
   if (guild) {
     const { data } = await db.from("games").select("id, name").eq("discord_guild", guild).maybeSingle();
@@ -114,7 +109,6 @@ async function staff(discordId: string, game: number): Promise<Staff | null> {
   return { name: data.username || "discord staff" };
 }
 
-// username or id -> roblox user id + name
 async function resolve(input: string, game: number): Promise<{ id: string; name: string } | null> {
   const q = input.trim();
   if (/^[1-9][0-9]{0,18}$/.test(q)) {
@@ -186,7 +180,6 @@ async function run(name: string, opts: Record<string, string | number | boolean>
   if (name === "ban") {
     const reason = String(opts.reason ?? "").slice(0, 200);
     const hours = typeof opts.hours === "number" ? Math.min(87600, Math.max(1, Math.trunc(opts.hours))) : null;
-    // same path as the dashboard: closes their reports and queues undoing what they gained
     const { error } = await db.rpc("bot_ban", {
       p_game: game.id, p_user_id: target.id, p_reason: reason, p_hours: hours, p_actor: actor,
     });
@@ -236,7 +229,6 @@ async function run(name: string, opts: Record<string, string | number | boolean>
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  // one-time command registration, only our own database can trigger it
   if (req.method === "POST" && url.searchParams.get("setup") === "1") {
     if (!(await fromDatabase(req))) return json(401, { error: "auth" });
     return json(200, await registerCommands());
@@ -266,7 +258,6 @@ Deno.serve(async (req) => {
   const opts: Record<string, string | number | boolean> = {};
   for (const o of i.data?.options ?? []) opts[o.name] = o.value;
 
-  // answer "thinking..." right away, then fill it in (discord only waits 3 seconds)
   EdgeRuntime.waitUntil((async () => {
     let result: Record<string, unknown>;
     try {

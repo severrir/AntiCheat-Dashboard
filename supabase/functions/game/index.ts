@@ -3,8 +3,6 @@ import { db, gameForKey, gameSecret, json, playerLink, replayLink, renderLink, S
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
-// game servers talk to this. no jwt, auth is the x-game-key header (we only store its sha256)
-
 const MAX_BODY = 600_000;
 const ID_RE = /^[1-9][0-9]{0,18}$/;
 const CHECK_RE = /^[A-Za-z]{1,24}$/;
@@ -153,7 +151,6 @@ async function postAlerts(game: number, p: Sync) {
   if (!url) return;
   await postKicks(url, p.kicks, p.server);
 
-  // auto-shadowed players and fresh reports are worth a heads-up, not a wall of pings
   const embeds: unknown[] = [];
   for (const s of p.shadow.filter((x) => x.on).slice(0, 3)) {
     embeds.push({
@@ -212,7 +209,6 @@ async function postKicks(url: string, kicks: Sync["kicks"], server: string) {
   }
 }
 
-// mission control goes over a private realtime channel, only approved admins can listen
 async function broadcast(game: number, payload: unknown) {
   await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
     method: "POST",
@@ -246,7 +242,6 @@ function parsePulse(body: Record<string, unknown>) {
   };
 }
 
-// the avatar's limbs: name, size, rest pose, color. poses are 6 numbers per limb per sample
 function parseRig(v: unknown) {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const r = v as Record<string, unknown>;
@@ -307,7 +302,6 @@ function parseReplay(body: Record<string, unknown>) {
   const rig = parseRig(body.rig);
   const rawPoses = rig ? arr(body.poses, 400) : [];
   const width = rig ? rig.parts.length * 6 : 0;
-  // poses stay lined up with samples, a bad sample drops its pose too
   const poses: number[][] = [];
   const samples = arr(body.samples, 400).flatMap((s, i) => {
     const v = vec(s, 7);
@@ -338,7 +332,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "method" });
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return json(413, { error: "size" });
 
-  // the key says which game this server belongs to
   const game = await gameForKey(req.headers.get("x-game-key") ?? "");
   if (!game) return json(401, { error: "auth" });
 
@@ -367,7 +360,6 @@ Deno.serve(async (req) => {
         console.error("ingest", error.message);
         return json(500, { error: "db" });
       }
-      // don't make the game server wait on discord
       if (payload.kicks.length || payload.reports.length || payload.shadow.length) {
         EdgeRuntime.waitUntil(postAlerts(game, payload));
       }
@@ -412,7 +404,6 @@ Deno.serve(async (req) => {
       const version = str(body.version, 64);
       const idx = num(body.idx, 1, 20);
       if (!place || !version || idx === null) return json(400, { error: "map" });
-      // 11 numbers from older servers, 13 with material and transparency
       const parts = arr(body.parts, 1600).flatMap((p) => {
         const v = vec(p, 13, -1e7, 1e8) ?? vec(p, 11, -1e7, 1e8);
         return v ? [v] : [];

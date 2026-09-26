@@ -1,5 +1,3 @@
--- the last 20s of one player's movement plus what fired, frozen at one moment.
--- captured synchronously (the player may be gone a frame later), uploaded whenever
 local Recording = {}
 Recording.__index = Recording
 
@@ -10,7 +8,6 @@ local function r2(n)
 	return math.floor(n * 100 + 0.5) / 100
 end
 
--- context: { server, mapVersion, kickScore }
 function Recording.capture(profile, kind, reason, context)
 	local n = profile.times.count
 	if n == 0 then
@@ -18,9 +15,7 @@ function Recording.capture(profile, kind, reason, context)
 	end
 	local tEnd = profile.times:Get(1)
 
-	-- oldest first. [t, x, y, z, yaw, snapped, grounded]
 	local samples = table.create(n)
-	-- limb poses line up with samples, {} where we don't have one
 	local poses = table.create(n)
 	local anyPose = false
 	for i = n, 1, -1 do

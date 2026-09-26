@@ -1,5 +1,3 @@
--- the math behind trust scores and the kick decision. pure, so tests can use it too
-
 local Scoring = {}
 
 function Scoring.decay(value, since, now, halfLife)
@@ -9,9 +7,6 @@ function Scoring.decay(value, since, now, halfLife)
 	return value * 0.5 ^ ((now - since) / math.max(halfLife, 1))
 end
 
--- worst 1 second window of the recorded path compared to what was allowed.
--- > 1 means they really did go faster than allowed, not just lag
--- xs/zs/times/allowed are ring buffers, 1 = newest. negative allowed = right after our own snapback
 function Scoring.worstWindow(times, xs, zs, allowed)
 	local n = times.count
 	if n < 3 then
@@ -43,11 +38,6 @@ function Scoring.worstWindow(times, xs, zs, allowed)
 	return worst
 end
 
---[[
-	breakdown: { {check, value}, ... } sorted biggest first
-	returns "kick", "wait" (not enough agreement yet) or "scale" (replay says it was lag, halve the score)
-	confirmMovement() is only called when movement is the top check
-]]
 function Scoring.decide(score, breakdown, T, definitive, confirmMovement)
 	if score < T.KickScore or #breakdown == 0 then
 		return "wait"
@@ -68,10 +58,8 @@ function Scoring.decide(score, breakdown, T, definitive, confirmMovement)
 	end
 
 	if breakdown[1].check == "Movement" then
-		-- movement proves itself through replay, it doesn't need a second check
 		return if confirmMovement() then "kick" else "scale"
 	end
-	-- anything else alone is too noisy, wait for another check to agree
 	return if distinct >= T.MinCorroboratingChecks then "kick" else "wait"
 end
 

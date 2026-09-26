@@ -3,20 +3,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(script:FindFirstAncestor("AntiCheat").Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
---[[
-	base class for every service the scheduler runs per player.
-
-	local MovementService = Check.extend({
-		Name = "ACMovementService",
-		Category = "Movement",   -- what flags show up as on the dashboard
-		Feature = "Movement",    -- dashboard toggle that switches it on/off
-		Rate = "hot",            -- "hot" 10x a second, "cold" every 2s
-	})
-
-	function MovementService:Step(profile, now) ... end
-
-	Start is inherited: it grabs TrustService, registers with the scheduler, then calls OnStart.
-]]
 local Check = {}
 Check.__index = Check
 
