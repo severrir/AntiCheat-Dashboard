@@ -140,14 +140,12 @@ function buildParts(scene: THREE.Scene, parts: MapPart[], track: <T extends { di
     const [shape, matCode, alpha] = key.split('|').map(Number)
     const look = surface(matCode)
     const opacity = Math.min(look.opacity ?? 1, 1 - alpha / 100)
+    const see = { transparent: opacity < 0.99, opacity, depthWrite: opacity >= 0.99 }
+    // neon ignores lighting and shows its own color at full strength, like in game
     const material = track(
-      new THREE.MeshStandardMaterial({
-        roughness: look.roughness,
-        metalness: look.metalness,
-        transparent: opacity < 0.99,
-        opacity,
-        depthWrite: opacity >= 0.99,
-      }),
+      look.emissive
+        ? new THREE.MeshBasicMaterial({ ...see, toneMapped: false })
+        : new THREE.MeshStandardMaterial({ ...see, roughness: look.roughness, metalness: look.metalness }),
     )
     const mesh = new THREE.InstancedMesh(shapes[shape], material, list.length)
     list.forEach((p, i) => {
@@ -159,12 +157,7 @@ function buildParts(scene: THREE.Scene, parts: MapPart[], track: <T extends { di
       color.setHex(p[9])
       mesh.setColorAt(i, color)
     })
-    // neon glows: same colors, pushed past the lighting
-    if (look.emissive) {
-      material.emissive.set(0xffffff)
-      material.emissiveIntensity = 0.6
-    }
-    mesh.castShadow = opacity > 0.6
+    mesh.castShadow = opacity > 0.6 && !look.emissive
     mesh.receiveShadow = true
     scene.add(mesh)
   }

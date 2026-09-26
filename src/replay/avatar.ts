@@ -168,19 +168,41 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     byName.set(part.n, limb)
   }
 
-  // accessories ride on their limb. layered clothing is skipped, a box around the torso would hide the shirt
-  const sphere = new THREE.SphereGeometry(0.5, 14, 10)
-  disposables.push(sphere)
+  // accessories ride on their limb as simple shapes in their texture's color. their meshes need a
+  // roblox login to download, and a raw bounding box (long hair, a puffer vest) would swallow the body,
+  // so each shape is kept close to the limb it sits on. layered clothing is skipped
+  const sizeOf = new Map(rig.parts.map((p) => [p.n, p.s] as const))
+  const cap = new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2)
+  const ball = new THREE.SphereGeometry(0.5, 14, 10)
+  const block = new THREE.BoxGeometry(1, 1, 1)
+  disposables.push(cap, ball, block)
   for (const a of rig.acc ?? []) {
     const limb = byName.get(a.l)
-    if (!limb || a.w) continue
-    const mat = new THREE.MeshStandardMaterial({ color: a.c, roughness: 0.8 })
+    const ls = sizeOf.get(a.l)
+    if (!limb || !ls || a.w) continue
+    const mat = new THREE.MeshStandardMaterial({ color: a.c, roughness: 0.85 })
     disposables.push(mat)
-    const m = new THREE.Mesh(sphere, mat)
+    const fit = (i: number, k: number) => Math.min(a.s[i], ls[i] * k)
+    const inside = (i: number, k: number) => THREE.MathUtils.clamp(a.o[i], -ls[i] * k, ls[i] * k)
+    let m: THREE.Mesh
+    if (a.l === 'Head') {
+      // hair and hats: a dome over the top and back of the head, the face stays visible
+      m = new THREE.Mesh(cap, mat)
+      const tall = a.o[1] > ls[1] * 0.9
+      m.scale.set(ls[0] * 1.18, tall ? fit(1, 1.4) : ls[1] * 0.95, ls[2] * 1.18)
+      m.position.set(0, tall ? inside(1, 1.2) : ls[1] * 0.15, ls[2] * 0.05)
+    } else if (/Torso$/.test(a.l)) {
+      // vests, backpacks, capes: a block hugging the torso
+      m = new THREE.Mesh(block, mat)
+      m.scale.set(fit(0, 1.08), fit(1, 1.04), fit(2, 1.35))
+      m.position.set(inside(0, 0.1), inside(1, 0.1), inside(2, 0.25))
+    } else {
+      m = new THREE.Mesh(ball, mat)
+      m.scale.set(fit(0, 1.3), fit(1, 1.3), fit(2, 1.3))
+      m.position.set(inside(0, 0.5), inside(1, 0.5), inside(2, 0.5))
+      m.rotation.set(a.o[3], a.o[4], a.o[5], 'XYZ')
+    }
     m.castShadow = true
-    m.position.set(a.o[0], a.o[1], a.o[2])
-    m.rotation.set(a.o[3], a.o[4], a.o[5], 'XYZ')
-    m.scale.set(a.s[0], a.s[1], a.s[2])
     limb.mesh.add(m)
     if (a.t) {
       robloxImage(a.t).then((img) => {
