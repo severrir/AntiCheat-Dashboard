@@ -55,7 +55,7 @@ function SpectatorService:_suspects()
 	local now = os.clock()
 	local list = {}
 	for _, profile in self._players:List() do
-		if not profile.admin then
+		if not profile.immune then
 			local top = profile:Breakdown(now)[1]
 			table.insert(list, {
 				id = profile.userId,

@@ -46,7 +46,7 @@ function CombatService:ValidateHit(attacker, victim, opts)
 		self._bait:Tripped(profile, "hit")
 		return false
 	end
-	if profile.admin or not Config.On("Combat") then
+	if profile.immune or not Config.On("Combat") then
 		return targetRoot ~= nil
 	end
 

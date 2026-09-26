@@ -38,7 +38,7 @@ end
 -- target is a Player or a PlayerProfile
 function TrustService:Flag(target, check, severity, ctx)
 	local profile = if typeof(target) == "Instance" then self._players:Get(target) else target
-	if not profile or profile.admin or profile.kicked then
+	if not profile or profile.immune or profile.kicked then
 		return
 	end
 	local now = os.clock()

@@ -1,3 +1,5 @@
+local RunService = game:GetService("RunService")
+
 local AC = script.Parent.Parent
 local Config = require(AC.Config)
 local RingBuffer = require(script.Parent.RingBuffer)
@@ -17,6 +19,8 @@ function PlayerProfile.new(player)
 		player = player,
 		userId = player.UserId,
 		admin = Config.Admins[player.UserId] == true,
+		-- admins aren't judged in live servers. in studio they are, so you can test with play solo
+		immune = Config.Admins[player.UserId] == true and not (RunService:IsStudio() and Config.CheckAdminsInStudio),
 		joinedAt = now,
 		kicked = false,
 

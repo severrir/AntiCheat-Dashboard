@@ -31,7 +31,7 @@ end
 
 function CharacterService:Step(profile, now)
 	local char, hum, root = profile.char, profile.humanoid, profile.root
-	if profile.admin or not char or not hum or not root or char.Parent == nil then
+	if profile.immune or not char or not hum or not root or char.Parent == nil then
 		return
 	end
 	if profile:IsExempt("Character", now) then

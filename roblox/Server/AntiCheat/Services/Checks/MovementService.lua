@@ -116,7 +116,7 @@ function MovementService:Step(profile, now)
 	profile.afterSnap = verdict ~= nil
 	profile:Record(now, pos, yaw, math.max(allowed, 1) * marker, ground ~= nil or climbing)
 
-	if profile.admin then
+	if profile.immune then
 		-- admins are only recorded (for test sessions), never judged
 		profile.move = MovementModel.new(pos.X, pos.Y, pos.Z, now)
 		profile.afterSnap = false

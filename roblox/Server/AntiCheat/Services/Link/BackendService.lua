@@ -121,7 +121,7 @@ function BackendService:Sync()
 	local batch = self._batch:Drain()
 	local players = batch.departed
 	for _, profile in self._players:List() do
-		if not profile.admin then
+		if not profile.immune then
 			table.insert(players, self:_snapshot(profile, now))
 		end
 	end
@@ -165,7 +165,7 @@ function BackendService:Start()
 	self._commands = Framework.Get("ACCommandService")
 
 	self._players.Removing:Connect(function(profile)
-		if not profile.admin then
+		if not profile.immune then
 			self._batch:AddDeparted(self:_snapshot(profile, os.clock()))
 		end
 	end)

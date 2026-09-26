@@ -45,7 +45,7 @@ end
 function BaitNpcService:Step(profile, now)
 	local root = profile.root
 	local suspicious = profile:Score(now) >= Config.Thresholds.KickScore * SUSPECT
-	if profile.admin or not suspicious or not root or not root.Parent then
+	if profile.immune or not suspicious or not root or not root.Parent then
 		self:_release(profile)
 		return
 	end

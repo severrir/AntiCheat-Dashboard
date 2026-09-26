@@ -7,6 +7,10 @@ Config.Admins = {
 	[5647285586] = true,
 }
 
+-- in studio admins get checked like everyone else, so play solo actually tests something.
+-- live servers always leave admins alone
+Config.CheckAdminsInStudio = true
+
 Config.Backend = {
 	Url = "https://kapvjoemzsdqiealluzl.supabase.co/functions/v1/game",
 	SecretName = "anticheat_key",

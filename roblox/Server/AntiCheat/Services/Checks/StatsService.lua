@@ -31,7 +31,7 @@ function StatsService:Record(player, name, value, lowerIsSuspicious)
 		return
 	end
 	local profile = self._players:Get(player)
-	if not profile or profile.admin or type(value) ~= "number" or value ~= value then
+	if not profile or profile.immune or type(value) ~= "number" or value ~= value then
 		return
 	end
 	if type(name) ~= "string" or #name > 32 then
