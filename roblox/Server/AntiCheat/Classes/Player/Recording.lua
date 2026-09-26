@@ -20,7 +20,13 @@ function Recording.capture(profile, kind, reason, context)
 
 	-- oldest first. [t, x, y, z, yaw, snapped, grounded]
 	local samples = table.create(n)
+	-- limb poses line up with samples, {} where we don't have one
+	local poses = table.create(n)
+	local anyPose = false
 	for i = n, 1, -1 do
+		local pose = profile.poses:Get(i)
+		table.insert(poses, pose or {})
+		anyPose = anyPose or pose ~= false
 		local allowed = profile.allowed:Get(i)
 		table.insert(samples, {
 			r2(profile.times:Get(i) - tEnd),
@@ -56,6 +62,8 @@ function Recording.capture(profile, kind, reason, context)
 		},
 		samples = samples,
 		events = events,
+		rig = if anyPose and profile.rig then profile.rig.info else nil,
+		poses = if anyPose and profile.rig then poses else nil,
 	}, Recording)
 end
 
@@ -71,6 +79,8 @@ function Recording:ToPayload()
 		meta = self.meta,
 		samples = self.samples,
 		events = self.events,
+		rig = self.rig,
+		poses = self.poses,
 	}
 end
 

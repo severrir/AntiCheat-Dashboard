@@ -246,13 +246,74 @@ function parsePulse(body: Record<string, unknown>) {
   };
 }
 
+// the avatar's limbs: name, size, rest pose, color. poses are 6 numbers per limb per sample
+function parseRig(v: unknown) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  const parts = arr(r.parts, 20).flatMap((p: any) => {
+    const s = vec(p?.s, 3, 0, 100), rest = vec(p?.r, 6, -100, 100), c = num(p?.c, 0, 0xffffff);
+    return typeof p?.n === "string" && s && rest && c !== null ? [{ n: str(p.n, 32), s, r: rest, c: Math.trunc(c) }] : [];
+  });
+  if (parts.length === 0) return null;
+  const asset = (x: unknown) => (typeof x === "number" && Number.isSafeInteger(x) && x > 0 ? x : null);
+  const c = (r.clothes && typeof r.clothes === "object" ? r.clothes : {}) as Record<string, unknown>;
+  const acc = arr(r.acc, 12).flatMap((a: any) => {
+    const s = vec(a?.s, 3, 0, 100), o = vec(a?.o, 6, -100, 100), col = num(a?.c, 0, 0xffffff);
+    return typeof a?.l === "string" && s && o && col !== null
+      ? [{ l: str(a.l, 32), s, o, c: Math.trunc(col), t: asset(a.t), w: a.w === true }]
+      : [];
+  });
+  return {
+    type: r.type === "R6" ? "R6" : "R15",
+    hip: num(r.hip, 0, 50) ?? 2,
+    root: vec(r.root, 3, 0, 100) ?? [2, 2, 1],
+    parts,
+    clothes: { shirt: asset(c.shirt), pants: asset(c.pants), tshirt: asset(c.tshirt), face: asset(c.face) },
+    acc,
+  };
+}
+
+function parseSky(v: unknown) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const s = v as Record<string, unknown>;
+  return {
+    clock: num(s.clock, 0, 24) ?? 14,
+    ambient: num(s.ambient, 0, 0xffffff), fog: num(s.fog, 0, 0xffffff), fogEnd: num(s.fogEnd, 0, 1e5),
+    brightness: num(s.brightness, 0, 20), haze: num(s.haze, 0, 0xffffff), density: num(s.density, 0, 1),
+    sun: vec(s.sun, 3, -1, 1),
+  };
+}
+
+function parseTerrainMeta(v: unknown) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const t = v as Record<string, unknown>;
+  const x0 = num(t.x0, -1e5, 1e5), z0 = num(t.z0, -1e5, 1e5), step = num(t.step, 1, 1024);
+  const cols = num(t.cols, 1, 512), rows = num(t.rows, 1, 512);
+  if (x0 === null || z0 === null || step === null || cols === null || rows === null) return null;
+  const palette: Record<string, number> = {};
+  if (t.palette && typeof t.palette === "object") {
+    for (const [k, c] of Object.entries(t.palette as Record<string, unknown>).slice(0, 40)) {
+      const n = num(c, 0, 0xffffff);
+      if (/^\d{1,2}$/.test(k) && n !== null) palette[k] = Math.trunc(n);
+    }
+  }
+  return { x0, z0, step, cols: Math.trunc(cols), rows: Math.trunc(rows), palette, water: num(t.water, 0, 1) ?? 0.3 };
+}
+
 function parseReplay(body: Record<string, unknown>) {
   const user = id(body.user);
   const kind = typeof body.kind === "string" && ["kick", "capture", "session"].includes(body.kind) ? body.kind : null;
   if (!user || !kind) return null;
-  const samples = arr(body.samples, 400).flatMap((s) => {
+  const rig = parseRig(body.rig);
+  const rawPoses = rig ? arr(body.poses, 400) : [];
+  const width = rig ? rig.parts.length * 6 : 0;
+  // poses stay lined up with samples, a bad sample drops its pose too
+  const poses: number[][] = [];
+  const samples = arr(body.samples, 400).flatMap((s, i) => {
     const v = vec(s, 7);
-    return v ? [v.map((n, i) => (i === 0 || i === 4 ? Math.round(n * 100) / 100 : Math.round(n * 10) / 10))] : [];
+    if (!v) return [];
+    if (rig) poses.push(vec(rawPoses[i], width, -500, 500) ?? []);
+    return [v.map((n, i) => (i === 0 || i === 4 ? Math.round(n * 100) / 100 : Math.round(n * 10) / 10))];
   });
   if (samples.length < 2) return null;
   const events = arr(body.events, 200).flatMap((e: any) =>
@@ -261,8 +322,11 @@ function parseReplay(body: Record<string, unknown>) {
       : []
   );
   const meta = cleanCtx(body.meta);
+  const hasPoses = poses.some((p) => p.length > 0);
   return {
     user, kind, events, samples, meta,
+    rig: hasPoses ? rig : null,
+    poses: hasPoses ? poses : null,
     server: str(body.server, 64),
     place: id(body.place),
     mapVersion: str(body.mapVersion, 64),
@@ -333,11 +397,12 @@ Deno.serve(async (req) => {
     case "map_check": {
       const place = id(body.place);
       const version = str(body.version, 64);
-      const total = num(body.total, 1, 10);
+      const total = num(body.total, 1, 60);
       const bounds = vec(body.bounds, 6);
       if (!place || !version || total === null) return json(400, { error: "map" });
       const { data, error } = await db.rpc("game_map_check", {
         p_game: game, p_place: place, p_version: version, p_total: Math.trunc(total), p_bounds: bounds,
+        p_sky: parseSky(body.sky), p_terrain: parseTerrainMeta(body.terrain),
       });
       return error ? json(500, { error: "db" }) : json(200, { needed: data === true });
     }
@@ -345,14 +410,30 @@ Deno.serve(async (req) => {
     case "map_chunk": {
       const place = id(body.place);
       const version = str(body.version, 64);
-      const idx = num(body.idx, 1, 10);
+      const idx = num(body.idx, 1, 20);
       if (!place || !version || idx === null) return json(400, { error: "map" });
+      // 11 numbers from older servers, 13 with material and transparency
       const parts = arr(body.parts, 1600).flatMap((p) => {
-        const v = vec(p, 11, -1e7, 1e8);
+        const v = vec(p, 13, -1e7, 1e8) ?? vec(p, 11, -1e7, 1e8);
         return v ? [v] : [];
       });
       const { error } = await db.rpc("game_map_chunk", {
         p_game: game, p_place: place, p_version: version, p_idx: Math.trunc(idx), p_parts: parts,
+      });
+      return error ? json(500, { error: "db" }) : json(200, { ok: true });
+    }
+
+    case "map_terrain": {
+      const place = id(body.place);
+      const version = str(body.version, 64);
+      const idx = num(body.idx, 1, 50);
+      const start = num(body.start, 0, 1e6);
+      if (!place || !version || idx === null || start === null) return json(400, { error: "map" });
+      const cells = (v: unknown, lo: number, hi: number) =>
+        arr(v, 4000).map((x) => (typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : -99999));
+      const data = { h: cells(body.h, -99999, 1e5), w: cells(body.w, -99999, 1e5), m: cells(body.m, 0, 64).map(Math.trunc) };
+      const { error } = await db.rpc("game_map_terrain", {
+        p_game: game, p_place: place, p_version: version, p_idx: Math.trunc(idx), p_start: Math.trunc(start), p_data: data,
       });
       return error ? json(500, { error: "db" }) : json(200, { ok: true });
     }

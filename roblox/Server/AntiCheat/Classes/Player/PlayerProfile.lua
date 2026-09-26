@@ -3,6 +3,7 @@ local RunService = game:GetService("RunService")
 local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local RingBuffer = require(AC.Classes.Core.RingBuffer)
+local Rig = require(AC.Classes.Player.Rig)
 local Physics = require(AC.Util.Physics)
 local Scoring = require(AC.Util.Scoring)
 
@@ -42,6 +43,9 @@ function PlayerProfile.new(player)
 		yaws = RingBuffer.new(HISTORY),
 		allowed = RingBuffer.new(HISTORY),
 		grounds = RingBuffer.new(HISTORY),
+		-- limb poses next to every movement sample, so replays show the real animation
+		poses = RingBuffer.new(HISTORY, false),
+		rig = nil,
 		events = RingBuffer.new(64, false),
 		netCalls = 0,
 		moveViolations = RingBuffer.new(8),
@@ -137,6 +141,7 @@ function PlayerProfile:Record(now, pos, yaw, allowed, grounded)
 	self.yaws:Push(yaw)
 	self.allowed:Push(allowed)
 	self.grounds:Push(if grounded then 1 else 0)
+	self.poses:Push(if self.rig and Config.RecordPoses then self.rig:Pose() else false)
 end
 
 -- detail feeds the cheat tool fingerprint, e.g. "Speed x2.5"
@@ -171,6 +176,22 @@ function PlayerProfile:BindCharacter(char)
 	self.move = nil
 	-- spawning can teleport you
 	self:Exempt("Movement", 1.5)
+
+	-- the avatar's clothes and accessories load a moment after spawning
+	self.rig = nil
+	task.spawn(function()
+		local player = self.player
+		local deadline = os.clock() + 10
+		while not player:HasAppearanceLoaded() and os.clock() < deadline and self.char == char do
+			task.wait(0.25)
+		end
+		if self.char == char and root.Parent then
+			local ok, rig = pcall(Rig.fromCharacter, char, root)
+			if ok then
+				self.rig = rig
+			end
+		end
+	end)
 end
 
 function PlayerProfile:UnbindCharacter()
@@ -178,6 +199,7 @@ function PlayerProfile:UnbindCharacter()
 		Physics.Untrack(self.char)
 	end
 	self.char, self.root, self.humanoid, self.move = nil, nil, nil, nil
+	self.rig = nil
 end
 
 function PlayerProfile:Alive()

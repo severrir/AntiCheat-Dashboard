@@ -9,6 +9,7 @@
 	/accoins 50         add 50 to leaderstats Coins (recorded for undo)
 	/achit              hit a test dummy through ValidateHit (fails while shadowed)
 	/acreport           a fake player reports you for Flying (play solo only has one player)
+	/acreplay           save a replay of your last 20 seconds, then open it from your player page
 
 	does nothing in live servers. delete it before publishing if you like
 ]]
@@ -126,6 +127,16 @@ function commands.acreport(player, profile)
 	end)
 end
 
+function commands.acreplay(player, profile)
+	local recorder = Framework.Get("ACRecorderService")
+	local backend = Framework.Get("ACBackendService")
+	local recording = recorder:Capture(profile, "capture", "test replay from /acreplay")
+	backend:Track(function()
+		local id = recorder:Upload(recording)
+		say(player, if id then "Replay #" .. id .. " saved, open it from your player page" else "Replay upload failed")
+	end)
+end
+
 local folder = TextChatService:WaitForChild("TextChatCommands", 10)
 for name, run in commands do
 	local cmd = Instance.new("TextChatCommand")
@@ -145,4 +156,4 @@ for name, run in commands do
 		end
 	end)
 end
-print("[ACTest] test commands ready: /acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport")
+print("[ACTest] test commands ready: /acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport /acreplay")

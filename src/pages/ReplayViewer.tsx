@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { loadMap, supabase, type MapPart, type Replay } from '../lib/supabase'
+import { loadMap, supabase, type MapData, type Replay } from '../lib/supabase'
 import { caseFile } from '../lib/caseFile'
 import { CHECK_COLORS, ago, robloxProfile } from '../lib/format'
 import { Button } from '../components/ui'
+import { buildAvatar, DEFAULT_RIG } from '../replay/avatar'
+import { buildWorld } from '../replay/world'
+import { recordCanvas, videoSupported } from '../replay/video'
 
 type Props = { id: number; back: () => void; openPlayer: (id: number, game?: number) => void }
 
@@ -25,6 +28,7 @@ function sampleAt(samples: Replay['samples'], t: number) {
     z: a[3] + (b[3] - a[3]) * k,
     yaw: a[4] + yawDelta * k,
     index: i,
+    k,
   }
 }
 
@@ -56,23 +60,54 @@ function download(name: string, text: string) {
   URL.revokeObjectURL(url)
 }
 
+
+type CamMode = 'chase' | 'orbit' | 'top'
+const CAMS: { key: CamMode; label: string }[] = [
+  { key: 'chase', label: 'Chase' },
+  { key: 'orbit', label: 'Free' },
+  { key: 'top', label: 'Top' },
+]
+
+// every recorded pose as limb offsets + quaternions, so playback can blend between samples smoothly
+function preparePoses(replay: Replay) {
+  const rig = replay.rig
+  if (!rig || !replay.poses) return null
+  const n = rig.parts.length
+  const e = new THREE.Euler(), q = new THREE.Quaternion()
+  return replay.poses.map((p) => {
+    if (!p || p.length < n * 6) return null
+    const pos = new Float32Array(n * 3), rot = new Float32Array(n * 4)
+    for (let i = 0; i < n; i++) {
+      pos[i * 3] = p[i * 6]
+      pos[i * 3 + 1] = p[i * 6 + 1]
+      pos[i * 3 + 2] = p[i * 6 + 2]
+      q.setFromEuler(e.set(p[i * 6 + 3], p[i * 6 + 4], p[i * 6 + 5], 'XYZ'))
+      rot.set([q.x, q.y, q.z, q.w], i * 4)
+    }
+    return { pos, rot }
+  })
+}
+
 export default function ReplayViewer({ id, back, openPlayer }: Props) {
   const mount = useRef<HTMLDivElement>(null)
   const [replay, setReplay] = useState<Replay | null>(null)
-  const [parts, setParts] = useState<MapPart[] | null>(null)
+  const [map, setMap] = useState<MapData | null | undefined>(undefined)
   const [error, setError] = useState('')
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
-  const [follow, setFollow] = useState(true)
+  const [cam, setCam] = useState<CamMode>('chase')
+  const [recording, setRecording] = useState(false)
 
   const timeRef = useRef(0)
   const playingRef = useRef(true)
   const speedRef = useRef(1)
-  const followRef = useRef(true)
+  const camRef = useRef<CamMode>('chase')
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const recordRef = useRef<{ done: () => void } | null>(null)
   playingRef.current = playing
   speedRef.current = speed
-  followRef.current = follow
+  camRef.current = cam
 
   useEffect(() => {
     let alive = true
@@ -90,8 +125,8 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
         const r = data as Replay
         setReplay(r)
         timeRef.current = r.samples[0]?.[0] ?? 0
-        const map = await loadMap(r.place_id, r.map_version)
-        if (alive) setParts(map?.parts ?? [])
+        const m = await loadMap(r.place_id, r.map_version)
+        if (alive) setMap(m)
       })
     return () => {
       alive = false
@@ -119,126 +154,83 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
   // the whole three.js scene lives in here
   useEffect(() => {
     const el = mount.current
-    if (!el || !replay || parts === null || replay.samples.length < 2) return
+    if (!el || !replay || map === undefined || replay.samples.length < 2) return
     const samples = replay.samples
+    const rig = replay.rig ?? DEFAULT_RIG
+    const poses = preparePoses(replay)
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(el.clientWidth, el.clientHeight)
-    renderer.shadowMap.enabled = false
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.05
     el.appendChild(renderer.domElement)
+    canvasRef.current = renderer.domElement
 
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color('#07090d')
-    scene.fog = new THREE.Fog('#07090d', 180, 700)
-
-    const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.5, 3000)
+    const camera = new THREE.PerspectiveCamera(70, el.clientWidth / el.clientHeight, 0.3, 5000)
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.maxPolarAngle = Math.PI * 0.49
 
-    scene.add(new THREE.HemisphereLight('#bcd7ff', '#1a1f2a', 1.1))
-    const sun = new THREE.DirectionalLight('#ffffff', 1.4)
-    sun.position.set(80, 160, 60)
-    scene.add(sun)
-
     const disposables: { dispose(): void }[] = []
-    const track = <T extends { dispose(): void }>(x: T) => {
-      disposables.push(x)
-      return x
-    }
+    const track = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x)
 
-    // path bounds, used for camera + fallback ground
+    // path bounds, used for the camera and the fallback floor
     const box = new THREE.Box3()
     for (const s of samples) box.expandByPoint(new THREE.Vector3(s[1], s[2], s[3]))
     const center = box.getCenter(new THREE.Vector3())
+    const legs = rig.hip + rig.root[1] / 2 // root to feet
+    const floorY = box.min.y - (rig.type === 'R6' ? 3 : legs)
 
-    // the map: every exported part as an instanced box / ball / cylinder
-    const shapes: Record<number, THREE.BufferGeometry> = {
-      0: track(new THREE.BoxGeometry(1, 1, 1)),
-      1: track(new THREE.SphereGeometry(0.5, 16, 12)),
-      2: track(new THREE.CylinderGeometry(0.5, 0.5, 1, 16).rotateZ(Math.PI / 2)),
-      3: track(new THREE.BoxGeometry(1, 1, 1)),
-    }
-    const material = track(new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.05 }))
-    const byShape = new Map<number, MapPart[]>()
-    for (const p of parts) {
-      const shape = p[10] in shapes ? p[10] : 0
-      if (!byShape.has(shape)) byShape.set(shape, [])
-      byShape.get(shape)!.push(p)
-    }
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), color = new THREE.Color()
-    for (const [shape, list] of byShape) {
-      const mesh = new THREE.InstancedMesh(shapes[shape], material, list.length)
-      list.forEach((p, i) => {
-        e.set(p[6], p[7], p[8], 'XYZ')
-        q.setFromEuler(e)
-        m.compose(new THREE.Vector3(p[0], p[1], p[2]), q, new THREE.Vector3(p[3], p[4], p[5]))
-        mesh.setMatrixAt(i, m)
-        color.setHex(p[9]).multiplyScalar(0.8)
-        mesh.setColorAt(i, color)
-      })
-      scene.add(mesh)
-    }
-    if (parts.length === 0) {
-      const grid = new THREE.GridHelper(600, 60, '#1d2531', '#121821')
-      grid.position.set(center.x, box.min.y - 3, center.z)
-      scene.add(grid)
-    }
+    const world = buildWorld(scene, map, center, floorY)
 
-    // trail: cyan, red around detections, amber for our snapbacks
+    // trail at their feet: cyan, red around detections, amber for our snapbacks
     const hot = replay.events.map((ev) => ev[0])
+    const feet = rig.type === 'R6' ? 2.9 : legs - 0.1
     const trailPos: number[] = [], trailCol: number[] = []
     const cyan = new THREE.Color('#22d3ee'), red = new THREE.Color('#f43f5e'), amber = new THREE.Color('#fbbf24')
     for (const s of samples) {
-      trailPos.push(s[1], s[2] - 2.5, s[3])
+      trailPos.push(s[1], s[2] - feet, s[3])
       const c = s[5] === 1 ? amber : hot.some((h) => Math.abs(h - s[0]) < 0.35) ? red : cyan
       trailCol.push(c.r, c.g, c.b)
     }
     const trailGeo = track(new THREE.BufferGeometry())
     trailGeo.setAttribute('position', new THREE.Float32BufferAttribute(trailPos, 3))
     trailGeo.setAttribute('color', new THREE.Float32BufferAttribute(trailCol, 3))
-    const trailMat = track(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 }))
-    scene.add(new THREE.Line(trailGeo, trailMat))
+    scene.add(new THREE.Line(trailGeo, track(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }))))
 
-    // snapback rings
-    const ringGeo = track(new THREE.TorusGeometry(1.4, 0.15, 8, 24).rotateX(Math.PI / 2))
+    // snapback rings on the ground
+    const ringGeo = track(new THREE.TorusGeometry(1.4, 0.12, 8, 24).rotateX(Math.PI / 2))
     const ringMat = track(new THREE.MeshBasicMaterial({ color: '#fbbf24' }))
     for (const s of samples) {
-      if (s[5] === 1) {
-        const ring = new THREE.Mesh(ringGeo, ringMat)
-        ring.position.set(s[1], s[2] - 2.9, s[3])
-        scene.add(ring)
-      }
+      if (s[5] !== 1) continue
+      const ring = new THREE.Mesh(ringGeo, ringMat)
+      ring.position.set(s[1], s[2] - feet + 0.1, s[3])
+      scene.add(ring)
     }
 
-    // a beam of light wherever something fired
-    const beamGeo = track(new THREE.CylinderGeometry(0.12, 0.12, 14, 8))
+    // a thin pillar of light wherever something fired
+    const beamGeo = track(new THREE.CylinderGeometry(0.08, 0.08, 16, 8))
     for (const ev of replay.events) {
       if (ev[0] < samples[0][0] || ev[0] > samples[samples.length - 1][0]) continue
       const p = sampleAt(samples, ev[0])
-      const mat = track(
-        new THREE.MeshBasicMaterial({ color: CHECK_COLORS[ev[1]] ?? '#94a3b8', transparent: true, opacity: 0.7 }),
+      const beam = new THREE.Mesh(
+        beamGeo,
+        track(new THREE.MeshBasicMaterial({ color: CHECK_COLORS[ev[1]] ?? '#94a3b8', transparent: true, opacity: 0.55 })),
       )
-      const beam = new THREE.Mesh(beamGeo, mat)
-      beam.position.set(p.x, p.y + 4, p.z)
+      beam.position.set(p.x, p.y - feet + 8, p.z)
       scene.add(beam)
     }
 
-    // the ghost
-    const ghostMat = track(
-      new THREE.MeshStandardMaterial({ color: '#22d3ee', emissive: '#0a3a44', transparent: true, opacity: 0.85 }),
-    )
-    const ghost = new THREE.Group()
-    const body = new THREE.Mesh(track(new THREE.CapsuleGeometry(1, 3, 6, 16)), ghostMat)
-    const nose = new THREE.Mesh(track(new THREE.ConeGeometry(0.45, 1.2, 12).rotateX(-Math.PI / 2)), ghostMat)
-    nose.position.set(0, 1.2, -1.3)
-    ghost.add(body, nose)
-    scene.add(ghost)
+    const avatar = buildAvatar(rig, String(replay.meta.name ?? replay.user_id))
+    scene.add(avatar.group)
 
     const size = box.getSize(new THREE.Vector3())
     const dist = Math.max(40, Math.max(size.x, size.z) * 0.9)
-    camera.position.set(center.x + dist * 0.6, center.y + dist * 0.7, center.z + dist * 0.6)
+    camera.position.set(center.x + dist * 0.6, center.y + dist * 0.5, center.z + dist * 0.6)
     controls.target.copy(center)
 
     const onResize = () => {
@@ -249,6 +241,27 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     const observer = new ResizeObserver(onResize)
     observer.observe(el)
 
+    // scratch space for blending two poses
+    const n = rig.parts.length
+    const pos = new Float32Array(n * 3), rot = new Float32Array(n * 4)
+    const qa = new THREE.Quaternion(), qb = new THREE.Quaternion()
+    const blend = (index: number, k: number) => {
+      if (!poses) return false
+      const a = poses[index - 1], b = poses[index]
+      const from = a ?? b, to = b ?? a
+      if (!from || !to) return false
+      for (let i = 0; i < n * 3; i++) pos[i] = from.pos[i] + (to.pos[i] - from.pos[i]) * k
+      for (let i = 0; i < n; i++) {
+        qa.fromArray(from.rot, i * 4)
+        qb.fromArray(to.rot, i * 4)
+        qa.slerp(qb, k).toArray(rot, i * 4)
+      }
+      return true
+    }
+
+    const root = new THREE.Vector3(), look = new THREE.Vector3(), want = new THREE.Vector3(), eye = new THREE.Vector3()
+    let camYaw = sampleAt(samples, timeRef.current).yaw
+    let first = true
     let last = performance.now()
     let raf = 0
     let uiTick = 0
@@ -257,23 +270,57 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
       last = now
       if (playingRef.current) {
         timeRef.current += dt * speedRef.current
-        if (timeRef.current > samples[samples.length - 1][0]) timeRef.current = samples[0][0]
+        if (timeRef.current > samples[samples.length - 1][0]) {
+          if (recordRef.current) {
+            timeRef.current = samples[samples.length - 1][0]
+            recordRef.current.done()
+            recordRef.current = null
+          } else {
+            timeRef.current = samples[0][0]
+          }
+        }
       }
       const t = timeRef.current
       const p = sampleAt(samples, t)
-      ghost.position.set(p.x, p.y, p.z)
-      ghost.rotation.y = p.yaw
-      const flagged = hot.some((h) => Math.abs(h - t) < 0.35)
-      ghostMat.color.set(flagged ? '#f43f5e' : '#22d3ee')
-      ghostMat.emissive.set(flagged ? '#4a0f1c' : '#0a3a44')
+      root.set(p.x, p.y, p.z)
+      const a = samples[p.index - 1], b = samples[p.index]
+      const dtS = Math.max(0.01, b[0] - a[0])
+      const moving = b[5] === 1 ? 0 : Math.hypot(b[1] - a[1], b[3] - a[3]) / dtS
+      const posed = blend(p.index, p.k)
+      avatar.update(root, p.yaw, posed ? pos : null, posed ? rot : null, moving, t)
+      avatar.setFlagged(hot.some((h) => Math.abs(h - t) < 0.35))
 
-      if (followRef.current) {
-        const goal = new THREE.Vector3(p.x, p.y, p.z)
-        const shift = goal.clone().sub(controls.target).multiplyScalar(0.08)
+      // cameras
+      const mode = camRef.current
+      controls.enabled = mode === 'orbit'
+      const smooth = first ? 1 : 1 - Math.exp(-dt * 5)
+      look.set(p.x, p.y + 1.5, p.z)
+      if (mode === 'chase') {
+        // roblox's default camera: behind and a little above, turning with them
+        const d = Math.atan2(Math.sin(p.yaw - camYaw), Math.cos(p.yaw - camYaw))
+        camYaw += d * (first ? 1 : 1 - Math.exp(-dt * 3))
+        want.set(Math.sin(camYaw) * 12, 4.5, Math.cos(camYaw) * 12).add(root)
+        camera.position.lerp(want, smooth)
+        eye.lerp(look, first ? 1 : 1 - Math.exp(-dt * 10))
+        camera.lookAt(eye)
+      } else if (mode === 'top') {
+        want.set(p.x, p.y + 70, p.z + 0.01)
+        camera.position.lerp(want, smooth)
+        eye.lerp(look, first ? 1 : 1 - Math.exp(-dt * 10))
+        camera.lookAt(eye)
+      } else {
+        const shift = look.clone().sub(controls.target).multiplyScalar(0.08)
         controls.target.add(shift)
         camera.position.add(shift)
+        controls.update()
       }
-      controls.update()
+      if (mode !== 'orbit') controls.target.copy(eye)
+      first = false
+
+      // the sun's shadow box follows the action
+      world.sun.position.copy(root).addScaledVector(world.sunDir, 150)
+      world.sun.target.position.copy(root)
+
       renderer.render(scene, camera)
 
       // react state only ~10x a second, the scene itself runs every frame
@@ -289,18 +336,44 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
       cancelAnimationFrame(raf)
       observer.disconnect()
       controls.dispose()
+      avatar.dispose()
+      world.dispose()
       disposables.forEach((d) => d.dispose())
       scene.traverse((o) => {
         if (o instanceof THREE.InstancedMesh) o.dispose()
       })
       renderer.dispose()
       renderer.domElement.remove()
+      canvasRef.current = null
     }
-  }, [replay, parts])
+  }, [replay, map])
 
   const seek = (t: number) => {
     timeRef.current = t
     setTime(t)
+  }
+
+  // plays the replay once from the start and saves what the camera saw
+  async function saveVideo() {
+    const canvas = canvasRef.current
+    if (!canvas || !replay || recording) return
+    const rec = recordCanvas(canvas)
+    if (!rec) return
+    setRecording(true)
+    seek(start)
+    setPlaying(true)
+    await new Promise<void>((resolve) => {
+      recordRef.current = { done: resolve }
+    })
+    const blob = await rec.stop()
+    setRecording(false)
+    setPlaying(false)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `replay-${replay.id}-${String(replay.meta.name ?? replay.user_id)}.${rec.ext}`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
   if (error) {
@@ -323,9 +396,14 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     <div className="fixed inset-0 z-50 flex flex-col bg-bg lg:flex-row">
       <div className="relative min-h-[55vh] flex-1">
         <div ref={mount} className="absolute inset-0" />
-        {!replay || parts === null ? (
+        {!replay || map === undefined ? (
           <div className="absolute inset-0 grid place-items-center text-sm text-muted">Loading replay…</div>
         ) : null}
+        {recording && (
+          <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2 rounded-lg border border-bad/40 bg-panel/90 px-3 py-1.5 text-sm text-bad">
+            <span className="live-dot h-2 w-2 rounded-full bg-bad" /> Recording video… {Math.round(((time - start) / span) * 100)}%
+          </div>
+        )}
 
         <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-3">
           <button onClick={back} className="pointer-events-auto rounded-lg border border-line bg-panel/90 px-3 py-1.5 text-sm hover:border-muted/50">
@@ -376,10 +454,22 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
                   {s}×
                 </button>
               ))}
-              <label className="ml-2 flex items-center gap-1.5 text-xs text-muted">
-                <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="accent-cyan-400" />
-                follow
-              </label>
+              <span className="ml-2 flex overflow-hidden rounded-md border border-line">
+                {CAMS.map((c) => (
+                  <button
+                    key={c.key}
+                    onClick={() => setCam(c.key)}
+                    className={`px-2 py-1 text-xs ${cam === c.key ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </span>
+              {videoSupported() && (
+                <Button onClick={saveVideo} disabled={recording || map === undefined}>
+                  {recording ? 'Recording…' : '⬇ Save video'}
+                </Button>
+              )}
               <span className="ml-auto font-mono text-xs text-muted">
                 {end - time < 0.05 ? (replay.kind === 'kick' ? 'kick' : 'end') : `${(end - time).toFixed(1)}s before ${replay.kind === 'kick' ? 'kick' : 'end'}`}
               </span>

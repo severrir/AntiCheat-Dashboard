@@ -121,7 +121,45 @@ export type Replay = {
   meta: Record<string, string | number | boolean>
   samples: [number, number, number, number, number, number, number][]
   events: [number, string, string, string?][]
+  rig: Rig | null
+  poses: number[][] | null
   created_at: string
+}
+
+// the avatar as the game server saw it. poses are 6 numbers (offset from root + XYZ euler) per part
+export type RigPart = { n: string; s: [number, number, number]; r: number[]; c: number }
+export type RigAccessory = { l: string; s: [number, number, number]; o: number[]; c: number; t: number | null; w: boolean }
+export type Rig = {
+  type: 'R15' | 'R6'
+  hip: number
+  root: [number, number, number]
+  parts: RigPart[]
+  clothes?: { shirt: number | null; pants: number | null; tshirt: number | null; face: number | null }
+  acc?: RigAccessory[]
+}
+
+export type Sky = {
+  clock: number
+  ambient: number | null
+  fog: number | null
+  fogEnd: number | null
+  brightness: number | null
+  haze: number | null
+  density: number | null
+  sun: [number, number, number] | null
+}
+
+export type Terrain = {
+  x0: number
+  z0: number
+  step: number
+  cols: number
+  rows: number
+  palette: Record<string, number>
+  water: number
+  h: number[]
+  w: number[]
+  m: number[]
 }
 
 export type Appeal = {
@@ -180,20 +218,42 @@ export type MapPart = number[]
 
 export async function loadMap(placeId: number | null, version?: string | null) {
   if (!placeId) return null
-  let q = supabase.from('maps').select('place_id, version, total, received, bounds').eq('place_id', placeId)
+  let q = supabase.from('maps').select('place_id, version, total, received, bounds, sky, terrain').eq('place_id', placeId)
   q = version ? q.eq('version', version) : q.order('created_at', { ascending: false })
   const { data: maps } = await q.limit(1)
   const map = maps?.[0]
   if (!map) return null
-  const { data: chunks } = await supabase
-    .from('map_chunks')
-    .select('parts')
-    .eq('place_id', placeId)
-    .eq('version', map.version)
-    .order('idx')
+  const [{ data: chunks }, { data: rows }] = await Promise.all([
+    supabase.from('map_chunks').select('parts').eq('place_id', placeId).eq('version', map.version).order('idx'),
+    map.terrain
+      ? supabase.from('map_terrain').select('start, data').eq('place_id', placeId).eq('version', map.version).order('idx')
+      : Promise.resolve({ data: [] as { start: number; data: { h: number[]; w: number[]; m: number[] } }[] }),
+  ])
+
+  // stitch the heightmap back together from its chunks
+  let terrain: Terrain | null = null
+  if (map.terrain && rows && rows.length > 0) {
+    const meta = map.terrain as Omit<Terrain, 'h' | 'w' | 'm'>
+    const n = meta.cols * meta.rows
+    const h = new Array<number>(n).fill(-99999), w = new Array<number>(n).fill(-99999), m = new Array<number>(n).fill(0)
+    for (const row of rows) {
+      const d = row.data as { h: number[]; w: number[]; m: number[] }
+      for (let i = 0; i < d.h.length && row.start + i < n; i++) {
+        h[row.start + i] = d.h[i]
+        w[row.start + i] = d.w[i] ?? -99999
+        m[row.start + i] = d.m[i] ?? 0
+      }
+    }
+    terrain = { ...meta, h, w, m }
+  }
+
   return {
     version: map.version as string,
     bounds: map.bounds as number[] | null,
+    sky: (map.sky as Sky | null) ?? null,
+    terrain,
     parts: (chunks ?? []).flatMap((c) => c.parts as MapPart[]),
   }
 }
+
+export type MapData = NonNullable<Awaited<ReturnType<typeof loadMap>>>

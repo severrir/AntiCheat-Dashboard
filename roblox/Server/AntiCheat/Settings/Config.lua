@@ -87,6 +87,9 @@ Config.AppealUrl = "https://severrir.github.io/AntiCheat-Dashboard/#/appeal"
 Config.HotRate = 10
 Config.ColdRate = 0.5
 Config.HistorySeconds = 20
+-- record every limb 10x a second so replays play the real animation on the real avatar.
+-- about 100 KB per replay, turn off if bandwidth matters more
+Config.RecordPoses = true
 
 -- trap vault: the auto one sits far away from everything. parts named ACVault in workspace become extra vaults
 Config.Vault = {
