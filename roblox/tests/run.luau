@@ -2,9 +2,9 @@
 -- outside roblox. prints a summary, and a BADGE: line the CI turns into the README badge.
 -- luau tests/run.luau
 
-local MovementModel = require("../Server/AntiCheat/Lib/MovementModel")
-local Scoring = require("../Server/AntiCheat/Lib/Scoring")
-local RingBuffer = require("../Server/AntiCheat/Lib/RingBuffer")
+local MovementModel = require("../Server/AntiCheat/Classes/MovementModel")
+local Scoring = require("../Server/AntiCheat/Util/Scoring")
+local RingBuffer = require("../Server/AntiCheat/Classes/RingBuffer")
 local Sessions = require("./Sessions")
 local recorded = require("./recorded")
 
@@ -39,7 +39,7 @@ local function play(session)
 	for i = 2, #session.samples do
 		local p = session.samples[i]
 		local x, y, z = p.x + offX, p.y + offY, p.z + offZ
-		local verdict, allow = MovementModel.step(s, {
+		local verdict, allow = s:Step({
 			t = p.t, x = x, y = y, z = z,
 			walkSpeed = p.walkSpeed or session.walkSpeed or 16,
 			jumpSpeed = p.jumpSpeed or 50,
@@ -62,9 +62,10 @@ local function play(session)
 			scoreAt = p.t
 			-- snapbacks move the player in game, legit or not
 			do
-				offX += s.lx - x
-				offY += s.ly - y
-				offZ += s.lz - z
+				local sx, sy, sz = s:SnapTarget()
+				offX += sx - x
+				offY += sy - y
+				offZ += sz - z
 			end
 
 			local now = p.t

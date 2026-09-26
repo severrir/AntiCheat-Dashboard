@@ -1,4 +1,4 @@
-local Signal = require(script.Parent.Lib.Signal)
+local Signal = require(script.Parent.Classes.Signal)
 
 local Config = {}
 

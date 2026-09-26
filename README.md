@@ -18,7 +18,61 @@ Live at https://severrir.github.io/AntiCheat-Dashboard/
 | `roblox/Server/AntiCheat` | `ServerScriptService.AntiCheat` |
 | `roblox/Client/AntiCheatClient` | `StarterPlayerScripts.AntiCheatClient` (LocalScript, modules as children) |
 
-`AntiCheat/Boot.server.lua` adds the systems to Framework and starts it. If your game already boots Framework itself, delete Boot and call `Framework.AddDeep(ServerScriptService.AntiCheat.Systems)` from your own boot script before `Framework.Start()`.
+`AntiCheat/Boot.server.lua` adds the services to Framework and starts it, and the client LocalScript does the same with its controllers. If your game already boots Framework itself, delete those two boots and add these to yours before `Framework.Start()`:
+
+```lua
+Framework.AddDeep(ServerScriptService.AntiCheat.Services)      -- server
+Framework.AddDeep(StarterPlayerScripts.AntiCheatClient.Controllers) -- client
+```
+
+## Structure
+
+Built the Framework way: **Services** on the server, **Controllers** on the client, and plain OOP classes for anything with state. Every service is registered as `AC<Name>` so it can't clash with your own services (`Framework.Get("ACCombatService")`).
+
+```
+AntiCheat/
+  Boot.server.lua      Framework.AddDeep(Services) + Start
+  Config.lua           thresholds, feature toggles, admins
+  API.lua              the one module your game code needs
+  Classes/             PlayerProfile, MovementModel, Check (base class), TrapZone, BaitDummy,
+                       BaitCoin, Recording, PlayStyle, SyncBatch, Signal, RingBuffer
+  Util/                Scoring, Physics
+  Services/
+    Core/              PlayerService, TrustService, SchedulerService, EnforcementService
+    Checks/            MovementService, CharacterService, TimingService, StatsService,
+                       CombatService, ClientCheckService, NetGuardService
+    Traps/             HoneypotService, VaultService, BaitNpcService, BaitCoinService
+    Intel/             RecorderService, BehaviorService, ThreatService
+    Link/              BackendService, PulseService, CommandService, MapExportService
+    Response/          BanService, GlobalBanService, IslandService
+    Admin/             SpectatorService
+AntiCheatClient/       LocalScript: Framework.AddDeep(Controllers) + Start
+  Controllers/         HeartbeatController, SpectatorController
+  Classes/             SpectatorPanel
+```
+
+Every per-player check inherits from `Classes/Check`, so adding your own is small:
+
+```lua
+local Check = require(ServerScriptService.AntiCheat.Classes.Check)
+
+local FlingService = Check.extend({
+	Name = "ACFlingService",
+	Category = "Movement",  -- shows up as Movement on the dashboard
+	Feature = "Movement",   -- switched off together with Movement
+	Rate = "hot",           -- 10x a second per player, "cold" = every 2s
+})
+
+function FlingService:Step(profile, now)
+	if profile.root and profile.root.AssemblyAngularVelocity.Magnitude > 200 then
+		self:Flag(profile, 15, { kind = "Fling" })
+	end
+end
+
+return FlingService
+```
+
+Drop it anywhere in `Services/` and it's picked up, scheduled, and switchable from the dashboard.
 
 Enable HttpService. The game key is **not** in this repo: in Studio it goes in `AntiCheat/ServerKey` (gitignored), in live servers it's an experience secret named `anticheat_key`.
 
