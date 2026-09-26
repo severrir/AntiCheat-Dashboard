@@ -20,9 +20,9 @@ local MovementService = Check.extend({
 	Rate = "hot",
 })
 
--- point buried inside a block part, not just touching it. the root is 2 studs wide,
--- so a real player's center never gets this deep into a wall
-local DEEP = 0.5
+-- point inside a block part. collisions keep a real player's root center at least half a
+-- body width away from any wall, so a center that's inside one at all went through it
+local DEEP = 0.1
 local function buried(part, point)
 	if not (part:IsA("Part") and part.Shape == Enum.PartType.Block) then
 		return false
@@ -33,21 +33,24 @@ local function buried(part, point)
 end
 
 local env = {
-	-- solid thing between two points, checked from both sides (a real wall, not a grazed corner).
-	-- a slow walk through a thin wall can land a sample inside it and rays don't hit from the
-	-- inside, so ending up buried in the part we hit counts too
+	-- solid thing between two points. rays don't hit from the inside, and a slow walk through a
+	-- thin wall can land a sample inside it, so: through it both ways, ended up inside the thing
+	-- we hit, or started inside the thing we hit looking back
 	wall = function(ax, ay, az, bx, by, bz)
 		local a, b = Vector3.new(ax, ay, az), Vector3.new(bx, by, bz)
 		local forward = Physics.Cast(a, b - a)
-		if not forward then
-			return false
-		end
-		if buried(forward.Instance, b) then
+		if forward and buried(forward.Instance, b) then
 			return true, forward.Instance.Name
 		end
 		local back = Physics.Cast(b, a - b)
-		if back and back.Instance == forward.Instance then
+		if not back then
+			return false
+		end
+		if forward and back.Instance == forward.Instance then
 			return true, forward.Instance.Name
+		end
+		if not forward and buried(back.Instance, a) then
+			return true, back.Instance.Name
 		end
 		return false
 	end,
