@@ -394,7 +394,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-bg lg:flex-row">
-      <div className="relative min-h-[55vh] flex-1">
+      <div className="relative min-h-[65vh] flex-1">
         <div ref={mount} className="absolute inset-0" />
         {!replay || map === undefined ? (
           <div className="absolute inset-0 grid place-items-center text-sm text-muted">Loading replay…</div>
@@ -478,7 +478,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
         )}
       </div>
 
-      <aside className="max-h-[45vh] w-full overflow-y-auto border-t border-line bg-panel p-5 lg:max-h-none lg:w-96 lg:border-l lg:border-t-0">
+      <aside className="max-h-[35vh] w-full overflow-y-auto border-t border-line bg-panel p-5 lg:max-h-none lg:w-96 lg:border-l lg:border-t-0">
         {file && replay ? (
           <div className="space-y-5">
             <div>

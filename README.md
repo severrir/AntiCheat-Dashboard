@@ -124,7 +124,7 @@ Every one of these can be switched on/off live from Settings, no republish.
 | Trap vault | sealed invisible room far away, plus any part named `ACVault`. Only teleporters get in |
 | Bait NPC | invisible dummy next to suspects. Only aimbots/kill aura target it |
 | Bait coins | coins floating out of reach above the map, plus any part named `ACCoin` |
-| 3D replays | last 20s of every kick, watch it on the real map in the browser |
+| 3D replays | last 20s of every kick, played back in the browser like a video: the player's real avatar (classic shirt, pants, face, body colors, accessories as simple shapes) moving limb by limb, on a copy of the map with its parts, wedges, materials, terrain and lighting. Chase, free and top cameras, and *Save video* downloads it as an mp4/webm. `Config.RecordPoses` turns the limb recording off |
 | Mission Control | live radar of every server + cheat heatmap |
 | Threat level | per-server calm / watch / alert / under attack |
 | Spectator | `/spectate` or F8 in game, or the dashboard button (teleports you into their server) |
