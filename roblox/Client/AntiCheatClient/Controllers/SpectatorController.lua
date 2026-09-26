@@ -4,7 +4,7 @@ local TextChatService = game:GetService("TextChatService")
 local UserInputService = game:GetService("UserInputService")
 
 local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
-local SpectatorPanel = require(script.Parent.Parent.Classes.SpectatorPanel)
+local SpectatorPanel = require(script.Parent.Parent.UI.SpectatorPanel)
 
 -- client half of ACSpectatorService. the panel only ever gets built for accounts the server
 -- says are admins, and the server re-checks everything it receives anyway. /spectate or F8

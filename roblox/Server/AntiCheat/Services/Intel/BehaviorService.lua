@@ -1,6 +1,6 @@
 local AC = script:FindFirstAncestor("AntiCheat")
-local Check = require(AC.Classes.Check)
-local PlayStyle = require(AC.Classes.PlayStyle)
+local Check = require(AC.Classes.Core.Check)
+local PlayStyle = require(AC.Classes.Player.PlayStyle)
 
 -- keeps a PlayStyle per player for alt detection. never flags anything itself,
 -- the fingerprint goes up with every sync and the backend compares it to banned players

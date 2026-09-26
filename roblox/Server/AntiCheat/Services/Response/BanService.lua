@@ -3,8 +3,8 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Signal = require(AC.Classes.Signal)
+local Config = require(AC.Settings.Config)
+local Signal = require(AC.Classes.Core.Signal)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- bans come from the dashboard / discord bot. this keeps them enforced in game:

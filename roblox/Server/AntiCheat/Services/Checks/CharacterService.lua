@@ -1,5 +1,5 @@
 local AC = script:FindFirstAncestor("AntiCheat")
-local Check = require(AC.Classes.Check)
+local Check = require(AC.Classes.Core.Check)
 
 -- humanoid deleted or swapped, health above max, root resized, limbs gone
 local CharacterService = Check.extend({

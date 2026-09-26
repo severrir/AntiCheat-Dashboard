@@ -1,8 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Check = require(AC.Classes.Check)
+local Config = require(AC.Settings.Config)
+local Check = require(AC.Classes.Core.Check)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 local Net = require(ReplicatedStorage.Shared.Net)
 

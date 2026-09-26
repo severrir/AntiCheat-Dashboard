@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
+local Config = require(AC.Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- one number per server for mission control: 0 calm, 1 watch, 2 alert, 3 under attack

@@ -1,9 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
+local Config = require(AC.Settings.Config)
 local Scoring = require(AC.Util.Scoring)
-local Signal = require(AC.Classes.Signal)
+local Signal = require(AC.Classes.Core.Signal)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds

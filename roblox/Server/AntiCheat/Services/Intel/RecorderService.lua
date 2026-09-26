@@ -1,8 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Recording = require(AC.Classes.Recording)
+local Config = require(AC.Settings.Config)
+local Recording = require(AC.Classes.Player.Recording)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- turns the last 20s of a player's history into a Recording the dashboard can play back in 3D

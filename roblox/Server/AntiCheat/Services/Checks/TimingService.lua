@@ -1,7 +1,7 @@
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Check = require(AC.Classes.Check)
-local RingBuffer = require(AC.Classes.RingBuffer)
+local Config = require(AC.Settings.Config)
+local Check = require(AC.Classes.Core.Check)
+local RingBuffer = require(AC.Classes.Core.RingBuffer)
 
 local T = Config.Thresholds
 

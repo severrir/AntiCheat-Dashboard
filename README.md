@@ -30,33 +30,41 @@ Framework.AddDeep(StarterPlayerScripts.AntiCheatClient.Controllers) -- client
 Built the Framework way: **Services** on the server, **Controllers** on the client, and plain OOP classes for anything with state. Every service is registered as `AC<Name>` so it can't clash with your own services (`Framework.Get("ACCombatService")`).
 
 ```
-AntiCheat/
-  Boot.server.lua      Framework.AddDeep(Services) + Start
-  Config.lua           thresholds, feature toggles, admins
-  API.lua              the one module your game code needs
-  Classes/             PlayerProfile, MovementModel, Check (base class), TrapZone, BaitDummy,
-                       BaitCoin, Recording, PlayStyle, SyncBatch, Signal, RingBuffer
-  Util/                Scoring, Physics
-  Services/
-    Core/              PlayerService, TrustService, SchedulerService, EnforcementService
-    Checks/            MovementService, CharacterService, TimingService, StatsService,
-                       CombatService, ClientCheckService, NetGuardService
-    Traps/             HoneypotService, VaultService, BaitNpcService, BaitCoinService
-    Intel/             RecorderService, BehaviorService, ThreatService
-    Link/              BackendService, PulseService, CommandService, MapExportService
-    Response/          BanService, GlobalBanService, IslandService, ShadowService
-    Economy/           LedgerService, RevertService
-    Community/         ReportService
-    Admin/             SpectatorService
-AntiCheatClient/       LocalScript: Framework.AddDeep(Controllers) + Start
-  Controllers/         HeartbeatController, SpectatorController, ReportController
-  Classes/             SpectatorPanel, ReportPanel
+ServerScriptService
+  AntiCheat/
+    Boot                 Framework.AddDeep(Services) + Start
+    API                  the one module your game code needs
+    Settings/            Config (thresholds, features, admins), ServerKey (studio only, never committed)
+    Classes/
+      Core/              Check (base class), Signal, RingBuffer, SyncBatch
+      Player/            PlayerProfile, MovementModel, PlayStyle, Recording
+      Traps/             TrapZone, BaitDummy, BaitCoin
+    Util/                Scoring, Physics
+    Services/
+      Core/              PlayerService, TrustService, SchedulerService, EnforcementService
+      Checks/            MovementService, CharacterService, TimingService, StatsService,
+                         CombatService, ClientCheckService, NetGuardService
+      Traps/             HoneypotService, VaultService, BaitNpcService, BaitCoinService
+      Intel/             RecorderService, BehaviorService, ThreatService
+      Response/          BanService, GlobalBanService, IslandService, ShadowService
+      Economy/           LedgerService, RevertService
+      Community/         ReportService
+      Link/              BackendService, PulseService, CommandService, MapExportService
+      Admin/             SpectatorService
+  Dev/
+    ACTestKit            studio-only chat commands (roblox/tests/StudioTestKit.server.lua)
+ReplicatedStorage
+  Shared/                Framework, Net
+StarterPlayerScripts
+  AntiCheatClient        LocalScript: Framework.AddDeep(Controllers) + Start
+    Controllers/         HeartbeatController, SpectatorController, ReportController
+    UI/                  SpectatorPanel, ReportPanel
 ```
 
 Every per-player check inherits from `Classes/Check`, so adding your own is small:
 
 ```lua
-local Check = require(ServerScriptService.AntiCheat.Classes.Check)
+local Check = require(ServerScriptService.AntiCheat.Classes.Core.Check)
 
 local FlingService = Check.extend({
 	Name = "ACFlingService",
@@ -76,7 +84,7 @@ return FlingService
 
 Drop it anywhere in `Services/` and it's picked up, scheduled, and switchable from the dashboard.
 
-Enable HttpService. The game key is **not** in this repo: in Studio it goes in `AntiCheat/ServerKey` (gitignored), in live servers it's an experience secret named `anticheat_key`.
+Enable HttpService. The game key is **not** in this repo: in Studio it goes in `AntiCheat/Settings/ServerKey` (gitignored), in live servers it's an experience secret named `anticheat_key`.
 
 ### Net hook
 

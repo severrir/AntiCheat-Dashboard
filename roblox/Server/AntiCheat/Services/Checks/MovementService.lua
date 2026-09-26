@@ -1,9 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Check = require(AC.Classes.Check)
-local MovementModel = require(AC.Classes.MovementModel)
+local Config = require(AC.Settings.Config)
+local Check = require(AC.Classes.Core.Check)
+local MovementModel = require(AC.Classes.Player.MovementModel)
 local Physics = require(AC.Util.Physics)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 

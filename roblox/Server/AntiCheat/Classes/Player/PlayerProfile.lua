@@ -1,8 +1,8 @@
 local RunService = game:GetService("RunService")
 
-local AC = script.Parent.Parent
-local Config = require(AC.Config)
-local RingBuffer = require(script.Parent.RingBuffer)
+local AC = script:FindFirstAncestor("AntiCheat")
+local Config = require(AC.Settings.Config)
+local RingBuffer = require(AC.Classes.Core.RingBuffer)
 local Physics = require(AC.Util.Physics)
 local Scoring = require(AC.Util.Scoring)
 

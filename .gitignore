@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 
 # never commit the game key
-roblox/AntiCheat/ServerKey.lua
+**/ServerKey.lua
 .env*
 .luau/
 luau.zip

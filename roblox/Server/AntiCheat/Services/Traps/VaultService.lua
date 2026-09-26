@@ -2,9 +2,9 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Check = require(AC.Classes.Check)
-local TrapZone = require(AC.Classes.TrapZone)
+local Config = require(AC.Settings.Config)
+local Check = require(AC.Classes.Core.Check)
+local TrapZone = require(AC.Classes.Traps.TrapZone)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- a sealed room nobody can reach without noclip or teleporting. being inside it is proof.

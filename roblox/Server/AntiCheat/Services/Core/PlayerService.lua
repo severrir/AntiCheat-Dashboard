@@ -1,8 +1,8 @@
 local Players = game:GetService("Players")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local PlayerProfile = require(AC.Classes.PlayerProfile)
-local Signal = require(AC.Classes.Signal)
+local PlayerProfile = require(AC.Classes.Player.PlayerProfile)
+local Signal = require(AC.Classes.Core.Signal)
 
 -- one PlayerProfile per player, created on join. every other service reads profiles through here
 local PlayerService = {

@@ -1,4 +1,4 @@
-local Signal = require(script.Parent.Classes.Signal)
+local Signal = require(script:FindFirstAncestor("AntiCheat").Classes.Core.Signal)
 
 local Config = {}
 

@@ -4,7 +4,7 @@ local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
+local Config = require(AC.Settings.Config)
 
 -- cheater island: instead of a kick, cheaters get sent to one private server full of other cheaters.
 -- off by default, flip it in the dashboard. needs a published game, studio just kicks like normal

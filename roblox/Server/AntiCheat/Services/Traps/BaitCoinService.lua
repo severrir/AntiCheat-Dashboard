@@ -1,8 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local BaitCoin = require(AC.Classes.BaitCoin)
+local Config = require(AC.Settings.Config)
+local BaitCoin = require(AC.Classes.Traps.BaitCoin)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- a few coins floating way above the map where nobody can get. auto farm scripts and

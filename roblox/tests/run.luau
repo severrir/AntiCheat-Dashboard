@@ -2,10 +2,10 @@
 -- outside roblox. prints a summary, and a BADGE: line the CI turns into the README badge.
 -- luau tests/run.luau
 
-local MovementModel = require("../Server/AntiCheat/Classes/MovementModel")
+local MovementModel = require("../Server/AntiCheat/Classes/Player/MovementModel")
 local Scoring = require("../Server/AntiCheat/Util/Scoring")
-local RingBuffer = require("../Server/AntiCheat/Classes/RingBuffer")
-local SyncBatch = require("../Server/AntiCheat/Classes/SyncBatch")
+local RingBuffer = require("../Server/AntiCheat/Classes/Core/RingBuffer")
+local SyncBatch = require("../Server/AntiCheat/Classes/Core/SyncBatch")
 local Sessions = require("./Sessions")
 local recorded = require("./recorded")
 

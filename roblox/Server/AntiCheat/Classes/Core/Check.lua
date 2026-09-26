@@ -1,6 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(script.Parent.Parent.Config)
+local Config = require(script:FindFirstAncestor("AntiCheat").Settings.Config)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 --[[

@@ -1,9 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AC = script:FindFirstAncestor("AntiCheat")
-local Config = require(AC.Config)
-local Check = require(AC.Classes.Check)
-local BaitDummy = require(AC.Classes.BaitDummy)
+local Config = require(AC.Settings.Config)
+local Check = require(AC.Classes.Core.Check)
+local BaitDummy = require(AC.Classes.Traps.BaitDummy)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 -- invisible dummies parked right next to players who are already looking suspicious.

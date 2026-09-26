@@ -50,7 +50,7 @@ function KeyReveal({ value, done }: { value: string; done: () => void }) {
           Live servers: Creator Dashboard → your experience → Secrets → add <code className="text-text">anticheat_key</code> with this value.
         </li>
         <li>
-          Studio: a ModuleScript <code className="text-text">ServerKey</code> inside <code className="text-text">ServerScriptService.AntiCheat</code> that
+          Studio: a ModuleScript <code className="text-text">ServerKey</code> inside <code className="text-text">ServerScriptService.AntiCheat.Settings</code> that
           returns it as a string. Keep that script out of published copies you share.
         </li>
         <li>The old key stops working right away.</li>
