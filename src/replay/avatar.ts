@@ -172,10 +172,9 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
   // roblox login to download, and a raw bounding box (long hair, a puffer vest) would swallow the body,
   // so each shape is kept close to the limb it sits on. layered clothing is skipped
   const sizeOf = new Map(rig.parts.map((p) => [p.n, p.s] as const))
-  const cap = new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2)
   const ball = new THREE.SphereGeometry(0.5, 14, 10)
   const block = new THREE.BoxGeometry(1, 1, 1)
-  disposables.push(cap, ball, block)
+  disposables.push(ball, block)
   for (const a of rig.acc ?? []) {
     const limb = byName.get(a.l)
     const ls = sizeOf.get(a.l)
@@ -186,11 +185,22 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     const inside = (i: number, k: number) => THREE.MathUtils.clamp(a.o[i], -ls[i] * k, ls[i] * k)
     let m: THREE.Mesh
     if (a.l === 'Head') {
-      // hair and hats: a dome over the top and back of the head, the face stays visible
-      m = new THREE.Mesh(cap, mat)
-      const tall = a.o[1] > ls[1] * 0.9
-      m.scale.set(ls[0] * 1.18, tall ? fit(1, 1.4) : ls[1] * 0.95, ls[2] * 1.18)
-      m.position.set(0, tall ? inside(1, 1.2) : ls[1] * 0.15, ls[2] * 0.05)
+      // hair and hats: a blocky cap over the top of the head and down the back, the face stays visible
+      const H = ls[1] / 2
+      if (a.o[1] > ls[1] * 0.9) {
+        m = new THREE.Mesh(block, mat)
+        m.scale.set(fit(0, 1.2), fit(1, 1.2), fit(2, 1.2))
+        m.position.set(0, inside(1, 1.1), 0)
+      } else {
+        m = new THREE.Mesh(block, mat)
+        m.scale.set(ls[0] * 1.1, H * 0.75 + 0.1, ls[2] * 1.1)
+        m.position.set(0, (H * 0.25 + H + 0.1) / 2, 0)
+        const back = new THREE.Mesh(block, mat)
+        back.scale.set(ls[0] * 1.1, H * 1.5, ls[2] * 0.2)
+        back.position.set(0, H * 0.25, ls[2] * 0.5)
+        back.castShadow = true
+        limb.mesh.add(back)
+      }
     } else if (/Torso$/.test(a.l)) {
       // vests, backpacks, capes: a block hugging the torso
       m = new THREE.Mesh(block, mat)
