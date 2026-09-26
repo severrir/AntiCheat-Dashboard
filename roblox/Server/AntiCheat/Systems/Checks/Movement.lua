@@ -49,12 +49,11 @@ local env = {
 	end,
 }
 
-local function snapBack(profile, s, now)
+local function snapBack(profile, s)
 	local root = profile.root
 	local rot = root.CFrame - root.Position
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.CFrame = CFrame.new(s.lx, s.ly, s.lz) * rot
-	profile.moveViolations:Push(now)
 end
 
 function Movement.Step(profile, now)
@@ -133,6 +132,8 @@ function Movement.Step(profile, now)
 			profile.vaultWatch = now + 1.5
 			profile.vaultWatchAt = now
 		end
+		-- counted before flagging so enforcement sees this one when it decides
+		profile.moveViolations:Push(now)
 		Trust.Flag(profile, "Movement", verdict.severity, {
 			kind = verdict.kind,
 			speed = verdict.ctx.speed,
@@ -146,7 +147,7 @@ function Movement.Step(profile, now)
 		if profile.vaultWatch then
 			return
 		end
-		snapBack(profile, s, now)
+		snapBack(profile, s)
 	end
 end
 
