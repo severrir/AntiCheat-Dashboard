@@ -70,13 +70,13 @@ function ReportPanel.new(parent, onSend)
 	open.Name = "Open"
 	open.AnchorPoint = Vector2.new(0, 1)
 	open.Position = UDim2.new(0, 16, 1, -16)
-	open.Size = UDim2.fromOffset(92, 32)
+	open.Size = UDim2.fromOffset(78, 32)
 	open.BackgroundColor3 = BG
 	open.BackgroundTransparency = 0.15
 	open.Font = Enum.Font.GothamMedium
 	open.TextSize = 14
 	open.TextColor3 = WHITE
-	open.Text = "⚑  Report"
+	open.Text = "Report"
 	open.AutoButtonColor = true
 	-- hidden until the server says reports are on
 	open.Visible = false
@@ -94,14 +94,14 @@ function ReportPanel.new(parent, onSend)
 	window.AnchorPoint = Vector2.new(0.5, 0.5)
 	window.Position = UDim2.fromScale(0.5, 0.5)
 	-- 92% of a phone screen, 340 wide on anything bigger
-	window.Size = UDim2.new(0.92, 0, 0, 440)
+	window.Size = UDim2.new(0.92, 0, 0, 470)
 	window.BackgroundColor3 = BG
 	window.Visible = false
 	corner(window, 12)
 	stroke(window)
 	pad(window, 16)
 	local sizeLimit = Instance.new("UISizeConstraint")
-	sizeLimit.MaxSize = Vector2.new(340, 440)
+	sizeLimit.MaxSize = Vector2.new(340, 470)
 	sizeLimit.Parent = window
 	local layout = Instance.new("UIListLayout")
 	layout.Padding = UDim.new(0, 10)
@@ -123,7 +123,7 @@ function ReportPanel.new(parent, onSend)
 	close.Position = UDim2.fromScale(1, 0)
 	close.Size = UDim2.fromOffset(24, 24)
 	close.BackgroundTransparency = 1
-	close.Text = "✕"
+	close.Text = "×"
 	close.TextColor3 = MUTED
 	close.TextSize = 16
 	close.Font = Enum.Font.GothamBold
@@ -136,7 +136,7 @@ function ReportPanel.new(parent, onSend)
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Size = UDim2.new(1, 0, 0, 132)
+	list.Size = UDim2.new(1, 0, 0, 120)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.CanvasSize = UDim2.new()
 	list.ScrollBarThickness = 3

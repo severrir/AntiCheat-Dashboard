@@ -99,8 +99,8 @@ function BackendService:QueueReport(report)
 	self._batch:AddReport(report)
 end
 
-function BackendService:QueueShadow(profile, on, why)
-	self._batch:AddShadow(profile.userId, on, why, profile.player.Name)
+function BackendService:QueueShadow(profile, on, why, by)
+	self._batch:AddShadow(profile.userId, on, why, profile.player.Name, by)
 end
 
 function BackendService:QueueLedger(userId, kind, key, amount, victim, source, withheld)

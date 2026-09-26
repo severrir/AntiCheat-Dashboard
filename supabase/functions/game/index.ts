@@ -121,7 +121,9 @@ function parseSync(body: Record<string, unknown>) {
 
   const shadow = arr(body.shadow, 100).flatMap((x: any) => {
     const pid = id(x?.id);
-    return pid && typeof x?.on === "boolean" ? [{ id: pid, on: x.on, why: str(x.why, 120), name: str(x.name, 32) }] : [];
+    return pid && typeof x?.on === "boolean"
+      ? [{ id: pid, on: x.on, why: str(x.why, 120), name: str(x.name, 32), by: x.by === "staff" ? "staff" : "auto" }]
+      : [];
   });
 
   return {

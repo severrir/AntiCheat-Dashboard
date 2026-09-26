@@ -78,8 +78,8 @@ function SyncBatch:AddReport(report)
 	table.insert(self.reports, report)
 end
 
-function SyncBatch:AddShadow(userId, on, why, name)
-	table.insert(self.shadow, { id = tostring(userId), on = on, why = why, name = name })
+function SyncBatch:AddShadow(userId, on, why, name, by)
+	table.insert(self.shadow, { id = tostring(userId), on = on, why = why, name = name, by = by })
 end
 
 function SyncBatch:AddRevertAck(id, ok, result)

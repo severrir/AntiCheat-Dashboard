@@ -39,7 +39,7 @@ function ShadowService:Set(profile, by, why, quiet)
 	self.Changed:Fire(profile.player, true, by)
 
 	if not quiet then
-		self._backend:QueueShadow(profile, true, why or "")
+		self._backend:QueueShadow(profile, true, why or "", by)
 	end
 	-- the moment they cross the line is the best evidence there is
 	if not was and not quiet and Config.On("Replays") then
