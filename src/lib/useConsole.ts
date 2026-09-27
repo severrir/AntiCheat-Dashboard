@@ -27,9 +27,10 @@ export function useConsole(enabled: boolean, game: number) {
   const [appeals, setAppeals] = useState<Appeal[]>([])
   const [reports, setReports] = useState<Report[]>([])
   const [counts, setCounts] = useState<Counts>({ flags24: 0, kicks24: 0 })
-  const [loading, setLoading] = useState(true)
+  const [loadedFor, setLoadedFor] = useState(0)
   const [live, setLive] = useState(false)
-  const fresh = useRef(new Set<number>())
+  const [fresh] = useState(() => new Set<number>())
+  const current = useRef(game)
 
   const loadCounts = useCallback(async () => {
     if (!game) return
@@ -38,6 +39,7 @@ export function useConsole(enabled: boolean, game: number) {
       supabase.from('flags').select('id', { count: 'exact', head: true }).eq('game_id', game).gte('created_at', since),
       supabase.from('actions').select('id', { count: 'exact', head: true }).eq('game_id', game).eq('action', 'kick').gte('created_at', since),
     ])
+    if (current.current !== game) return
     setCounts({ flags24: f.count ?? 0, kicks24: k.count ?? 0 })
   }, [game])
 
@@ -54,6 +56,7 @@ export function useConsole(enabled: boolean, game: number) {
       supabase.from('appeals').select('*').eq('game_id', game).order('created_at', { ascending: false }).limit(200),
       supabase.from('reports').select('*').eq('game_id', game).order('created_at', { ascending: false }).limit(400),
     ])
+    if (current.current !== game) return
     setPlayers(p.data ?? [])
     setFlags(f.data ?? [])
     setBans(b.data ?? [])
@@ -64,13 +67,13 @@ export function useConsole(enabled: boolean, game: number) {
     setAppeals(a.data ?? [])
     setReports(r.data ?? [])
     await loadCounts()
-    setLoading(false)
+    if (current.current === game) setLoadedFor(game)
   }, [game, loadCounts])
 
   useEffect(() => {
     if (!enabled || !game) return
-    setLoading(true)
-    fresh.current.clear()
+    current.current = game
+    fresh.clear()
     reload()
 
     const upsert = <T,>(key: keyof T) => (setter: React.Dispatch<React.SetStateAction<T[]>>) => (row: T) =>
@@ -81,7 +84,7 @@ export function useConsole(enabled: boolean, game: number) {
       .channel(`console:${game}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'flags', filter }, (msg) => {
         const flag = msg.new as Flag
-        fresh.current.add(flag.id)
+        fresh.add(flag.id)
         setFlags((prev) => [flag, ...prev].slice(0, FEED_LIMIT))
         setCounts((c) => ({ ...c, flags24: c.flags24 + 1 }))
       })
@@ -117,12 +120,11 @@ export function useConsole(enabled: boolean, game: number) {
       clearInterval(timer)
       supabase.removeChannel(channel)
     }
-  }, [enabled, game, reload, loadCounts])
+  }, [enabled, game, reload, loadCounts, fresh])
 
   return {
-    players, flags, bans, config, users, staff, servers, appeals, reports, counts, loading, live, reload,
-    fresh: fresh.current,
+    players, flags, bans, config, users, staff, servers, appeals, reports, counts, loading: loadedFor !== game, live, reload,
+    fresh,
   }
 }
 
-export type ConsoleData = ReturnType<typeof useConsole>

@@ -11,8 +11,13 @@ async function init() {
       try {
         const res = await fetch("https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/Roboto%5Bwdth,wght%5D.ttf");
         if (res.ok) font = new Uint8Array(await res.arrayBuffer());
-      } catch
-    })();
+      } catch {
+        font = null;
+      }
+    })().catch((e) => {
+      ready = null;
+      throw e;
+    });
   }
   await ready;
 }

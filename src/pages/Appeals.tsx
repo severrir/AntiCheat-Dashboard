@@ -56,12 +56,13 @@ function AppealCard({ appeal, ban, player, open, openReplay }: {
     supabase
       .from('replays')
       .select('id')
+      .eq('game_id', appeal.game_id)
       .eq('user_id', appeal.user_id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
       .then(({ data }) => setReplayId(data?.id ?? null))
-  }, [appeal.user_id])
+  }, [appeal.user_id, appeal.game_id])
 
   async function decide(approve: boolean) {
     setBusy(true)
@@ -86,7 +87,7 @@ function AppealCard({ appeal, ban, player, open, openReplay }: {
           </span>
           {replayId && (
             <button onClick={() => openReplay(replayId)} className="ml-auto rounded-lg border border-accent/40 bg-accent/10 px-3 py-1 text-sm text-accent hover:bg-accent/20">
-              ▶ Watch what they did
+              Watch replay
             </button>
           )}
         </div>

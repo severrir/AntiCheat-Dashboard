@@ -26,7 +26,7 @@ end
 
 function BaitNpcService:Tripped(profile, how)
 	if profile and self:IsEnabled() then
-		self._honeypot:Trip(profile, "BaitNPC:" .. how)
+		self._honeypot:Trip(profile, "BaitNPC:" .. how, 60)
 	end
 end
 
@@ -41,7 +41,7 @@ end
 
 function BaitNpcService:Step(profile, now)
 	local root = profile.root
-	local suspicious = profile:Score(now) >= Config.Thresholds.KickScore * SUSPECT or profile.reportWeight >= 1
+	local suspicious = profile:Score(now) >= Config.Thresholds.KickScore * SUSPECT or profile:ReportWeight(now) >= 1
 	if profile.immune or not suspicious or not root or not root.Parent then
 		self:_release(profile)
 		return

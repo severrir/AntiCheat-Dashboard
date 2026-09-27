@@ -8,15 +8,16 @@ import { Button, Panel } from '../components/ui'
 type Props = { config: Config | null; users: DashUser[]; staff: GameStaff[]; me: DashUser; reload: () => void }
 
 export function Settings({ config, users, staff, me, reload }: Props) {
+  const { game, current } = useGame()
   const isOwner = me.role === 'owner'
   const isAdmin = isOwner || me.role === 'admin'
   return (
     <div className="space-y-5">
-      <GameSettings isOwner={isOwner} />
+      <GameSettings key={`${current?.id}-${current?.name}-${current?.universe_id}-${current?.discord_guild}`} isOwner={isOwner} />
       <Features config={config} reload={reload} />
-      <Thresholds config={config} reload={reload} />
+      <Thresholds key={`${game}-${config?.version}`} config={config} reload={reload} />
       <MyRoblox me={me} reload={reload} />
-      <Webhook />
+      <Webhook key={game} />
       <Keys />
       <DiscordBot />
       {isAdmin && <Team users={users} staff={staff} me={me} reload={reload} />}
@@ -60,25 +61,13 @@ function KeyReveal({ value, done }: { value: string; done: () => void }) {
 
 function GameSettings({ isOwner }: { isOwner: boolean }) {
   const { game, games, current, reloadGames } = useGame()
-  const [name, setName] = useState('')
-  const [universe, setUniverse] = useState('')
-  const [guild, setGuild] = useState('')
+  const [name, setName] = useState(current?.name ?? '')
+  const [universe, setUniverse] = useState(current?.universe_id ? String(current.universe_id) : '')
+  const [guild, setGuild] = useState(current?.discord_guild ?? '')
   const [msg, setMsg] = useState('')
   const [key, setKey] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState('')
-
-  useEffect(() => {
-    setName(current?.name ?? '')
-    setUniverse(current?.universe_id ? String(current.universe_id) : '')
-    setGuild(current?.discord_guild ?? '')
-  }, [current?.name, current?.universe_id, current?.discord_guild])
-
-  useEffect(() => {
-    setKey(null)
-    setMsg('')
-    setConfirmDelete('')
-  }, [current?.id])
 
   async function save() {
     const { error } = await supabase.rpc('admin_update_game', {
@@ -368,13 +357,9 @@ function DiscordBot() {
 
 function Thresholds({ config, reload }: { config: Config | null; reload: () => void }) {
   const { game } = useGame()
-  const [values, setValues] = useState<Record<string, number>>(DEFAULTS)
+  const [values, setValues] = useState<Record<string, number>>(() => ({ ...DEFAULTS, ...(config?.thresholds ?? {}) }))
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    setValues({ ...DEFAULTS, ...(config?.thresholds ?? {}) })
-  }, [config?.version, config?.thresholds])
 
   const changed = Object.keys(DEFAULTS).filter((k) => values[k] !== DEFAULTS[k])
 
@@ -450,7 +435,6 @@ function Webhook() {
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    setSet(null)
     supabase.rpc('secrets_status', { p_game: game }).then(({ data }) => setSet(Boolean((data as Record<string, boolean>)?.discord_webhook)))
   }, [game])
 

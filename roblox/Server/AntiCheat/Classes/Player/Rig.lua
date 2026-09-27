@@ -118,7 +118,7 @@ function Rig.fromCharacter(char, root)
 	end
 
 	local limbs, parts = {}, {}
-	for part, cf in rest do
+	for part in rest do
 		if part ~= root and part:IsA("BasePart") then
 			table.insert(limbs, part)
 		end

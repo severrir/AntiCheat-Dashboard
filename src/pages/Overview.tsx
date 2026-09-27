@@ -1,3 +1,4 @@
+import { useNow } from '../lib/useNow'
 import { useMemo } from 'react'
 import type { Ban, Flag, Player } from '../lib/supabase'
 import type { Counts } from '../lib/useConsole'
@@ -19,8 +20,9 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
   const suspects = [...online].sort((a, b) => b.trust_score - a.trust_score).slice(0, 12)
   const activeBans = bans.filter((b) => b.active).length
 
+  const now = useNow(60_000)
   const breakdown = useMemo(() => {
-    const cutoff = Date.now() - 86_400_000
+    const cutoff = now - 86_400_000
     const totals: Record<string, number> = {}
     for (const f of flags) {
       if (new Date(f.created_at).getTime() < cutoff) continue
@@ -28,7 +30,7 @@ export function Overview({ players, flags, bans, counts, kick, fresh, open }: Pr
     }
     const sum = Object.values(totals).reduce((a, b) => a + b, 0)
     return { rows: Object.entries(totals).sort((a, b) => b[1] - a[1]), sum }
-  }, [flags])
+  }, [flags, now])
 
   const names = useMemo(() => new Map(players.map((p) => [p.user_id, p.username])), [players])
 

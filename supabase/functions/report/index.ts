@@ -6,11 +6,22 @@ const COLORS: Record<string, string> = {
   Timing: "#fb923c", Honeypot: "#f43f5e", Client: "#60a5fa", Combat: "#f472b6", Custom: "#94a3b8",
 };
 
+async function allPages<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>, max: number) {
+  const out: T[] = [];
+  for (let from = 0; from < max; from += 1000) {
+    const { data } = await page(from, Math.min(from + 999, max - 1));
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return { data: out };
+}
+
 async function reportFor(game: { id: number; name: string }, webhook: string, multi: boolean) {
   const since = new Date(Date.now() - 86_400_000).toISOString();
   const [flags, actions, appeals, players, reports] = await Promise.all([
-    db.from("flags").select("check_name, hits, created_at, user_id").eq("game_id", game.id).gte("created_at", since).limit(20000),
-    db.from("actions").select("action, created_at").eq("game_id", game.id).gte("created_at", since).limit(5000),
+    allPages((from, to) => db.from("flags").select("check_name, hits, created_at, user_id").eq("game_id", game.id).gte("created_at", since).order("id").range(from, to), 20000),
+    allPages((from, to) => db.from("actions").select("action, created_at").eq("game_id", game.id).gte("created_at", since).order("id").range(from, to), 5000),
     db.from("appeals").select("status").eq("game_id", game.id).gte("decided_at", since).limit(1000),
     db.from("players").select("user_id", { count: "exact", head: true }).eq("game_id", game.id).gte("last_seen", since),
     db.from("reports").select("id", { count: "exact", head: true }).eq("game_id", game.id).gte("created_at", since),

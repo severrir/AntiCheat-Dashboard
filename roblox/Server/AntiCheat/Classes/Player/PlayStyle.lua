@@ -24,11 +24,12 @@ function PlayStyle:Consume(profile)
 		end
 		newest = i
 	end
-	if newest < 2 then
+	if newest < 1 then
 		return
 	end
 
-	for i = newest, 2, -1 do
+	local start = if newest < times.count and self.lastT > 0 then newest + 1 else newest
+	for i = start, 2, -1 do
 		local dt = times:Get(i - 1) - times:Get(i)
 		if dt > 0 and dt < 1 then
 			self:_sample(profile, i, dt)

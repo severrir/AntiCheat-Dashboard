@@ -23,10 +23,17 @@ function BaitCoinService:_clear()
 end
 
 function BaitCoinService:_spawn()
+	local players = Framework.Get("ACPlayerService")
 	local onGrab = function(player)
-		if Config.On("BaitCoin") then
-			self._honeypot:Trip(player, "BaitCoin")
+		local profile = players:Get(player)
+		if not profile or not Config.On("BaitCoin") or profile.immune then
+			return
 		end
+		local hum = profile.humanoid
+		if (hum and hum.SeatPart) or profile:Allowed("Fly") then
+			return
+		end
+		self._honeypot:Trip(profile, "BaitCoin")
 	end
 
 	local bounds = self._map:Bounds()

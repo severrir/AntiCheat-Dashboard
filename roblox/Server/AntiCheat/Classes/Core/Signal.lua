@@ -22,7 +22,7 @@ function Signal:Fire(...)
 	for _, fn in self._handlers do
 		local ok, err = pcall(fn, ...)
 		if not ok then
-			warn("[AntiCheat] listener error:", err)
+			warn(`[AntiCheat] listener errored: {err}`)
 		end
 	end
 end

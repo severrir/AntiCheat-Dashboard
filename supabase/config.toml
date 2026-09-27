@@ -1,0 +1,19 @@
+project_id = "kapvjoemzsdqiealluzl"
+
+[functions.game]
+verify_jwt = false
+
+[functions.notify]
+verify_jwt = false
+
+[functions.render]
+verify_jwt = false
+
+[functions.report]
+verify_jwt = false
+
+[functions.discord]
+verify_jwt = false
+
+[functions.avatar]
+verify_jwt = false

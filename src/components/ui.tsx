@@ -15,12 +15,11 @@ export function Panel({ title, right, children, className = '' }: { title?: stri
   )
 }
 
-export function Stat({ label, value, tone = 'text-text', hint }: { label: string; value: ReactNode; tone?: string; hint?: string }) {
+export function Stat({ label, value, tone = 'text-text' }: { label: string; value: ReactNode; tone?: string }) {
   return (
     <div className="rounded-xl border border-line bg-panel/80 p-4">
       <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">{label}</div>
       <div className={`mt-2 font-mono text-3xl font-medium ${tone}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
     </div>
   )
 }

@@ -120,7 +120,15 @@ Net has two optional hooks the anticheat uses to watch every remote: `Net.Middle
 ```lua
 local AntiCheat = require(game.ServerScriptService.AntiCheat.API)
 
-AntiCheat.Exempt(player, "Movement", 2) -- before your own teleports, dashes, knockback
+AntiCheat.Teleport(player, cframe) -- teleports and tells the anticheat where they'll land
+
+local stop = AntiCheat.AllowSpeed(player, 40, 5) -- sprint, dash, speed coil: WalkSpeed up to 40 for 5s
+AntiCheat.AllowJump(player, 120, 3)             -- trampoline, jump pad: JumpPower up to 120
+AntiCheat.AllowFly(player, 10, 50)              -- jetpack, glider: in the air for 10s, up to 50 studs/s
+stop()                                          -- every Allow returns a function that ends it early
+
+AntiCheat.ExpectTeleport(player, position, 8, 3) -- a teleport the client does: must land within 8 studs in 3s
+AntiCheat.Exempt(player, "Movement", 2)          -- last resort, switches movement checks off completely
 
 Attack:Listen(function(player, target)
 	if AntiCheat.ValidateHit(player, target, { Range = 10, Cooldown = 0.5, Weapon = "Sword" }) then
@@ -148,6 +156,8 @@ AntiCheat.OnRevert(function(userId, summary)
 end)
 ```
 
+The Allow functions only raise the limits, everything else is still checked: a speed boost to 40 still catches someone going 90, and a player who was expected to teleport somewhere but lands somewhere else gets flagged for it.
+
 Also: `GetScore`, `Flag`, `OnFlagged`, `IsShadowed`, `Shadow`, `Report`, `IsBait`.
 
 Notes:
@@ -167,7 +177,7 @@ luau roblox/tests/run.luau
 
 Real sessions can be added from the replay page (*As legit play* / *As cheat*), drop the file in `roblox/tests/recorded/`.
 
-`roblox/tests/StudioTestKit.server.lua` adds Studio-only chat commands for trying things by hand: `/acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport /acreplay`.
+`roblox/tests/StudioTestKit.server.lua` adds Studio-only chat commands for trying things by hand: `/acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport /acreplay /acboost /acjump /acfly /actp /actpwrong`.
 
 ## Setup
 

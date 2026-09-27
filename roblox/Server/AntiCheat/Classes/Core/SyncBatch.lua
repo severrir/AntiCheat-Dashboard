@@ -11,6 +11,23 @@ end
 
 local MAX_LEDGER = 2000
 
+local function clean(ctx)
+	if type(ctx) ~= "table" then
+		return nil
+	end
+	local out = {}
+	for k, v in ctx do
+		if type(v) == "number" then
+			if v == v and math.abs(v) ~= math.huge then
+				out[k] = v
+			end
+		elseif type(v) == "string" or type(v) == "boolean" then
+			out[k] = v
+		end
+	end
+	return out
+end
+
 function SyncBatch.new(maxFlags)
 	return setmetatable({
 		maxFlags = maxFlags,
@@ -28,6 +45,7 @@ function SyncBatch.new(maxFlags)
 end
 
 function SyncBatch:AddFlag(profile, check, raw, amount, score, ctx, pos)
+	ctx = clean(ctx)
 	local key = profile.userId .. check
 	local entry = self.flags[key]
 	if entry then
@@ -105,43 +123,75 @@ function SyncBatch:AddLedger(userId, kind, key, amount, victim, source, withheld
 	}
 end
 
+local LIMITS = {
+	kicks = 100,
+	acks = 500,
+	departed = 150,
+	reports = 50,
+	shadow = 100,
+	revertAcks = 50,
+	ledger = 500,
+}
+
+local function take(list, limit)
+	if #list <= limit then
+		return list, {}
+	end
+	return table.move(list, 1, limit, 1, {}), table.move(list, limit + 1, #list, 1, {})
+end
+
 function SyncBatch:Drain()
 	local flags = {}
 	for _, entry in self.flags do
 		entry.top = nil
 		table.insert(flags, entry)
 	end
-	local ledger = {}
-	for _, entry in self.ledger do
+
+	local ledger, count = {}, 0
+	for k, entry in self.ledger do
+		if count >= LIMITS.ledger then
+			break
+		end
 		table.insert(ledger, entry)
+		self.ledger[k] = nil
+		count += 1
 	end
-	local out = {
-		flags = flags,
-		kicks = self.kicks,
-		acks = self.acks,
-		departed = self.departed,
-		reports = self.reports,
-		shadow = self.shadow,
-		revertAcks = self.revertAcks,
-		ledger = ledger,
-	}
-	self.flags, self.flagCount, self.kicks, self.acks, self.departed = {}, 0, {}, {}, {}
-	self.reports, self.shadow, self.revertAcks, self.ledger, self.ledgerCount = {}, {}, {}, {}, 0
+	self.ledgerCount -= count
+
+	local out = { flags = flags, ledger = ledger }
+	for _, name in { "kicks", "acks", "departed", "reports", "shadow", "revertAcks" } do
+		out[name], self[name] = take(self[name], LIMITS[name])
+	end
+	self.flags, self.flagCount = {}, 0
 	return out
 end
 
-local function append(into, from)
-	table.move(from, 1, #from, #into + 1, into)
+local function prepend(into, from)
+	if #from > 0 then
+		table.move(into, 1, #into, #from + 1)
+		table.move(from, 1, #from, 1, into)
+	end
 end
 
 function SyncBatch:Restore(drained)
-	append(self.kicks, drained.kicks)
-	append(self.acks, drained.acks)
-	append(self.reports, drained.reports)
-	append(self.shadow, drained.shadow)
-	append(self.revertAcks, drained.revertAcks)
+	for _, name in { "kicks", "acks", "departed", "reports", "shadow", "revertAcks" } do
+		prepend(self[name], drained[name])
+	end
 	for _, e in drained.ledger do
 		self:AddLedger(e.id, e.kind, e.key, e.amount, e.victim, e.source, e.withheld)
+	end
+	for _, e in drained.flags do
+		local key = e.id .. e.check
+		local entry = self.flags[key]
+		if entry then
+			entry.sev += e.sev
+			entry.raw += e.raw
+			entry.hits += e.hits
+		elseif self.flagCount < self.maxFlags then
+			self.flagCount += 1
+			e.top = e.sev
+			self.flags[key] = e
+		end
 	end
 end
 

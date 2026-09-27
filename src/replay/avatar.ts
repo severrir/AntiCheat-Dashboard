@@ -41,7 +41,7 @@ export const DEFAULT_RIG: Rig = {
 
 const imageCache = new Map<number, Promise<ImageBitmap | null>>()
 
-export function robloxImage(id: number | null | undefined): Promise<ImageBitmap | null> {
+function robloxImage(id: number | null | undefined): Promise<ImageBitmap | null> {
   if (!id) return Promise.resolve(null)
   let hit = imageCache.get(id)
   if (!hit) {
@@ -203,9 +203,11 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
     }
   }
 
+  let disposed = false
   const clothes = rig.clothes
   Promise.all([robloxImage(clothes?.shirt), robloxImage(clothes?.pants), robloxImage(clothes?.tshirt), robloxImage(clothes?.face)]).then(
     ([shirt, pants, tee, face]) => {
+      if (disposed) return
       for (const part of rig.parts) {
         const limb = byName.get(part.n)
         const info = chainOf(part.n)
@@ -282,6 +284,7 @@ export function buildAvatar(rig: Rig, name: string): Avatar {
       drawTag(on)
     },
     dispose() {
+      disposed = true
       disposables.forEach((d) => d.dispose())
       for (const limb of limbs) {
         for (const m of limb.mesh.material as THREE.MeshStandardMaterial[]) m.map?.dispose()

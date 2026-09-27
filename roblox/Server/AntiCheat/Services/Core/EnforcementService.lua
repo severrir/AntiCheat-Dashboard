@@ -35,7 +35,7 @@ local function signature(profile)
 	return table.move(out, 1, math.min(#out, 12), 1, {})
 end
 
-local function movementConfirmed(profile, now)
+function EnforcementService.MovementConfirmed(profile, now)
 	local recent = 0
 	for i = 1, profile.moveViolations.count do
 		if now - profile.moveViolations:Get(i) < 10 then
@@ -55,7 +55,7 @@ function EnforcementService:Evaluate(profile, now)
 	end
 	local breakdown = profile:Breakdown(now)
 	local decision = Scoring.decide(score, breakdown, T, Config.Definitive, function()
-		return movementConfirmed(profile, now)
+		return EnforcementService.MovementConfirmed(profile, now)
 	end)
 	if decision == "scale" then
 		profile:Scale(0.5, now)

@@ -121,7 +121,7 @@ function Pending({ me, signOut }: { me: DashUser | null; signOut: () => void }) 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
-  const [me, setMe] = useState<DashUser | null>(null)
+  const [profile, setProfile] = useState<DashUser | null>(null)
   const [route, setRoute] = useState<Route>(parseHash)
 
   useEffect(() => {
@@ -134,10 +134,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!session) {
-      setMe(null)
-      return
-    }
+    if (!session) return
     let alive = true
     const load = () =>
       supabase
@@ -145,7 +142,9 @@ export default function App() {
         .select('*')
         .eq('user_id', session.user.id)
         .maybeSingle()
-        .then(({ data }) => alive && setMe(data))
+        .then(({ data, error }) => {
+          if (alive && !error) setProfile(data)
+        })
     load()
     const timer = setInterval(load, 15_000)
     return () => {
@@ -154,14 +153,23 @@ export default function App() {
     }
   }, [session])
 
+  const me = session ? profile : null
+
+  const [games, setGames] = useState<Game[]>([])
+  const [picked, setPicked] = useState<number | null>(() => parseHash().game ?? savedGame())
+
   useEffect(() => {
-    const onHash = () => setRoute(parseHash())
+    const onHash = () => {
+      const r = parseHash()
+      setRoute(r)
+      if (r.game) {
+        setPicked(r.game)
+        saveGame(r.game)
+      }
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-
-  const [games, setGames] = useState<Game[]>([])
-  const [picked, setPicked] = useState<number | null>(savedGame)
   const signedIn = me?.role === 'owner' || me?.role === 'admin' || me?.role === 'staff'
 
   const reloadGames = useCallback(() => {
@@ -181,9 +189,6 @@ export default function App() {
     setPicked(id)
     saveGame(id)
   }, [])
-  useEffect(() => {
-    if (route.game && route.game === game && route.game !== picked) pickGame(route.game)
-  }, [route.game, game, picked, pickGame])
 
   const approved = signedIn && games.length > 0
   const data = useConsole(approved, game)
@@ -204,7 +209,8 @@ export default function App() {
     window.location.hash = `#/replay/${id}`
   }, [])
   const close = useCallback(() => {
-    window.history.length > 1 ? window.history.back() : (window.location.hash = '#/players')
+    if (window.history.length > 1) window.history.back()
+    else window.location.hash = '#/players'
   }, [])
 
   const selectedPlayer = useMemo(() => data.players.find((p) => p.user_id === route.player), [data.players, route.player])
@@ -290,11 +296,11 @@ export default function App() {
         ) : (
           <>
             {tab === 'overview' && <Overview {...data} kick={kick} open={open} />}
-            {tab === 'mission' && <MissionControl servers={data.servers} players={data.players} kick={kick} open={open} />}
+            {tab === 'mission' && <MissionControl key={game} servers={data.servers} kick={kick} open={open} />}
             {tab === 'players' && <Players players={data.players} bans={data.bans} kick={kick} open={open} />}
             {tab === 'feed' && <Feed flags={data.flags} players={data.players} fresh={data.fresh} open={open} />}
             {tab === 'reports' && <Reports reports={data.reports} players={data.players} bans={data.bans} kick={kick} open={open} openReplay={openReplay} />}
-            {tab === 'tools' && <CheatTools players={data.players} open={open} openReplay={openReplay} />}
+            {tab === 'tools' && <CheatTools key={game} players={data.players} open={open} openReplay={openReplay} />}
             {tab === 'appeals' && <Appeals appeals={data.appeals} bans={data.bans} players={data.players} open={open} openReplay={openReplay} />}
             {tab === 'tuning' && <Tuning config={data.config} players={data.players} bans={data.bans} reload={data.reload} />}
             {tab === 'bans' && <Bans bans={data.bans} players={data.players} open={open} />}

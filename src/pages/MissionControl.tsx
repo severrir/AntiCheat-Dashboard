@@ -1,33 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadMap, supabase, type MapPart, type Player, type Server } from '../lib/supabase'
+import { loadMap, supabase, type MapPart, type Server } from '../lib/supabase'
 import { CHECK_COLORS, ago } from '../lib/format'
 import { Empty, Panel } from '../components/ui'
 import { useGame } from '../lib/game'
+import { useNow } from '../lib/useNow'
 
 type LivePlayer = { id: string; name: string; score: number; x: number | null; y: number | null; z: number | null; yaw: number; admin?: boolean }
 type Pulse = { server: string; place: string | null; threat: number; island: boolean; t: number; players: LivePlayer[] }
 
-export const THREAT = [
+const THREAT = [
   { name: 'Calm', color: '#34d399' },
   { name: 'Watch', color: '#22d3ee' },
   { name: 'Alert', color: '#fbbf24' },
   { name: 'Red', color: '#f43f5e' },
 ]
 
-type Props = { servers: Server[]; players: Player[]; kick: number; open: (id: number) => void }
+type Props = { servers: Server[]; kick: number; open: (id: number) => void }
 
 const mapCache = new Map<number, Promise<{ parts: MapPart[]; bounds: number[] | null } | null>>()
 function cachedMap(place: number) {
-  if (!mapCache.has(place)) mapCache.set(place, loadMap(place))
+  if (!mapCache.has(place)) {
+    mapCache.set(
+      place,
+      loadMap(place).then((m) => {
+        if (!m) mapCache.delete(place)
+        return m
+      }),
+    )
+  }
   return mapCache.get(place)!
 }
 
-export function MissionControl({ servers, players, kick, open }: Props) {
+export function MissionControl({ servers, kick, open }: Props) {
   const { game } = useGame()
   const [pulses, setPulses] = useState<Record<string, Pulse>>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [mode, setMode] = useState<'live' | 'heat'>('live')
   const [heatDays, setHeatDays] = useState(7)
+  const now = useNow(5000)
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
@@ -43,7 +53,6 @@ export function MissionControl({ servers, players, kick, open }: Props) {
         })
         .subscribe()
     })()
-    setPulses({})
     return () => {
       cancelled = true
       if (channel) supabase.removeChannel(channel)
@@ -53,7 +62,7 @@ export function MissionControl({ servers, players, kick, open }: Props) {
   const list = useMemo(() => {
     const byId = new Map(servers.map((s) => [s.server_id, s]))
     for (const p of Object.values(pulses)) {
-      if (!byId.has(p.server) && Date.now() - p.t < 30_000) {
+      if (!byId.has(p.server) && now - p.t < 30_000) {
         byId.set(p.server, {
           server_id: p.server, game_id: game, place_id: p.place ? Number(p.place) : null, players: p.players.length,
           threat: p.threat, island: p.island, last_seen: new Date(p.t).toISOString(),
@@ -61,11 +70,11 @@ export function MissionControl({ servers, players, kick, open }: Props) {
       }
     }
     return [...byId.values()].sort((a, b) => b.threat - a.threat || b.players - a.players)
-  }, [servers, pulses, game])
+  }, [servers, pulses, game, now])
 
   const current = list.find((s) => s.server_id === selected) ?? list[0]
   const pulse = current ? pulses[current.server_id] : undefined
-  const placeId = current?.place_id ?? (players.length ? null : null)
+  const placeId = current?.place_id ?? null
 
   return (
     <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
@@ -141,6 +150,7 @@ export function MissionControl({ servers, players, kick, open }: Props) {
 type HeatPoint = { x: number; z: number; check: string; hits: number }
 
 function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; pulse?: Pulse; heat: number; kick: number; open: (id: number) => void }) {
+  const { game } = useGame()
   const canvas = useRef<HTMLCanvasElement>(null)
   const [map, setMap] = useState<{ parts: MapPart[]; bounds: number[] | null } | null>(null)
   const [points, setPoints] = useState<HeatPoint[]>([])
@@ -159,6 +169,7 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
     supabase
       .from('flags')
       .select('pos_x, pos_z, check_name, hits')
+      .eq('game_id', game)
       .eq('place_id', placeId)
       .not('pos_x', 'is', null)
       .gte('created_at', since)
@@ -166,10 +177,10 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       .then(({ data }) =>
         setPoints((data ?? []).map((f) => ({ x: f.pos_x as number, z: f.pos_z as number, check: f.check_name, hits: f.hits }))),
       )
-  }, [heat, placeId])
+  }, [heat, placeId, game])
 
   const lastPulse = useRef<Pulse | undefined>(undefined)
-  if (pulse !== lastPulse.current) {
+  useEffect(() => {
     if (lastPulse.current) {
       const m = new Map<string, { x: number; z: number }>()
       for (const p of lastPulse.current.players) if (p.x !== null && p.z !== null) m.set(p.id, { x: p.x, z: p.z })
@@ -177,7 +188,7 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
     }
     lastPulse.current = pulse
     pulseAt.current = performance.now()
-  }
+  }, [pulse])
 
   useEffect(() => {
     const el = canvas.current
@@ -193,9 +204,9 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
       if (!view.current.ready) {
         let b = map?.bounds
-        if (!b && pulse?.players.length) {
-          const xs = pulse.players.flatMap((p) => (p.x !== null ? [p.x] : []))
-          const zs = pulse.players.flatMap((p) => (p.z !== null ? [p.z] : []))
+        if (!b && lastPulse.current?.players.length) {
+          const xs = lastPulse.current.players.flatMap((p) => (p.x !== null ? [p.x] : []))
+          const zs = lastPulse.current.players.flatMap((p) => (p.z !== null ? [p.z] : []))
           if (xs.length) b = [Math.min(...xs) - 50, 0, Math.min(...zs) - 50, Math.max(...xs) + 50, 0, Math.max(...zs) + 50]
         }
         if (!b && points.length) {
@@ -258,6 +269,7 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       }
 
       dots.current = []
+      const pulse = lastPulse.current
       if (pulse) {
         const k = Math.min(1, (now - pulseAt.current) / 5000)
         for (const p of pulse.players) {
@@ -335,7 +347,7 @@ function Radar({ placeId, pulse, heat, kick, open }: { placeId: number | null; p
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [map, pulse, points, heat, kick, open])
+  }, [map, points, heat, kick, open])
 
   return (
     <div className="relative">

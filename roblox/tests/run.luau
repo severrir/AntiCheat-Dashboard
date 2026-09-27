@@ -161,6 +161,57 @@ do
 	print("ledger batching: ok")
 end
 
+do
+	local b = SyncBatch.new(400)
+	for i = 1, 150 do
+		b:AddKick({ id = tostring(i) })
+	end
+	b:AddDeparted({ id = "9" })
+	b:AddFlag({ userId = 5 }, "Movement", 10, 10, 10, { speed = math.huge, kind = "Speed" })
+	local first = b:Drain()
+	assert(#first.kicks == 100, "a sync should send at most 100 kicks")
+	assert(first.flags[1].ctx.speed == nil and first.flags[1].ctx.kind == "Speed", "infinite numbers must not reach the json")
+	b:Restore(first)
+	local second = b:Drain()
+	assert(#second.kicks == 100 and second.kicks[1].id == "1", "restored kicks go back to the front of the queue")
+	assert(#second.departed == 1 and #second.flags == 1, "a failed sync must keep departed players and flags")
+	assert(#b:Drain().kicks == 50, "the rest of the kicks wait for the next sync")
+	print("sync limits: ok")
+end
+
+do
+	local function run(extra, rise, forward, seconds)
+		local m = MovementModel.new(0, 10, 0, 0)
+		local kinds = {}
+		local x, y, t = 0, 10, 0
+		while t < seconds do
+			t += 0.1
+			x += forward * 0.1
+			y += rise * 0.1
+			local input = { t = t, x = x, y = y, z = 0, walkSpeed = 16, jumpSpeed = 50, grounded = false, climbing = false }
+			for k, v in extra do
+				input[k] = v
+			end
+			local verdict = m:Step(input, T)
+			if verdict then
+				kinds[verdict.kind] = true
+				x, y = m:SnapTarget()
+			end
+		end
+		return kinds
+	end
+
+	assert(run({}, 0, 16, 5).Fly, "hovering without permission should be flagged as Fly")
+	assert(next(run({ flying = true }, 0, 16, 5)) == nil, "AllowFly should let a player hover")
+	assert(next(run({ flying = true, flySpeed = 40, walkSpeed = 40 }, 30, 40, 5)) == nil, "AllowFly with a speed should allow flying at that speed")
+	assert(run({ flying = true, flySpeed = 40, walkSpeed = 40 }, 0, 90, 5).Speed, "flying faster than the allowed speed should be flagged")
+	assert(next(run({ walkSpeed = 60, grounded = true }, 0, 60, 5)) == nil, "AllowSpeed should raise the speed limit")
+	assert(run({ grounded = true }, 0, 60, 5).Speed, "the same speed without permission should be flagged")
+	assert(next(run({ jumpSpeed = 120, grounded = true }, 100, 0, 0.3)) == nil, "AllowJump should allow a higher jump")
+	assert(run({ grounded = true }, 100, 0, 0.3).SuperJump, "the same jump without permission should be flagged")
+	print("movement permissions: ok")
+end
+
 local color = if falseKicks == 0 and caught == #cheats then "brightgreen" elseif falseKicks == 0 then "yellow" else "red"
 print(string.format(
 	'BADGE:{"schemaVersion":1,"label":"anticheat tests","message":"%d/%d false kicks · %d/%d cheats caught","color":"%s"}',

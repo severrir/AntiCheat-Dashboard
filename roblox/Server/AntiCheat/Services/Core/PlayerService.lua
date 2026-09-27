@@ -6,7 +6,6 @@ local Signal = require(AC.Classes.Core.Signal)
 
 local PlayerService = {
 	Name = "ACPlayerService",
-	Added = Signal.new(),
 	Removing = Signal.new(),
 }
 
@@ -44,19 +43,20 @@ function PlayerService:_add(player)
 	self._byPlayer[player] = profile
 	table.insert(self._list, profile)
 
-	player.CharacterAdded:Connect(function(char)
-		profile:BindCharacter(char)
-	end)
-	player.CharacterRemoving:Connect(function(char)
-		if profile.char == char then
-			profile:UnbindCharacter()
-		end
-	end)
+	profile.connections = {
+		player.CharacterAdded:Connect(function(char)
+			profile:BindCharacter(char)
+		end),
+		player.CharacterRemoving:Connect(function(char)
+			if profile.char == char then
+				profile:UnbindCharacter()
+			end
+		end),
+	}
 	if player.Character then
 		task.spawn(profile.BindCharacter, profile, player.Character)
 	end
 
-	self.Added:Fire(profile)
 end
 
 function PlayerService:_remove(player)
@@ -65,6 +65,9 @@ function PlayerService:_remove(player)
 		return
 	end
 	self.Removing:Fire(profile)
+	for _, c in profile.connections or {} do
+		c:Disconnect()
+	end
 	profile:UnbindCharacter()
 	self._byPlayer[player] = nil
 	local list = self._list

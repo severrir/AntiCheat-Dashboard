@@ -77,6 +77,13 @@ function MovementService:Step(profile, now)
 	local model = profile.move
 	if not model or hum.SeatPart or profile:IsExempt("Movement", now) or now - model.lt > 1 then
 		profile.move = MovementModel.new(pos.X, pos.Y, pos.Z, now)
+		profile.afterSnap = true
+		return
+	end
+
+	if #profile.teleports > 0 and profile:TakeTeleport(pos, now, true) then
+		profile.move = MovementModel.new(pos.X, pos.Y, pos.Z, now)
+		profile.afterSnap = true
 		return
 	end
 
@@ -90,15 +97,26 @@ function MovementService:Step(profile, now)
 	local climbing = state == State.Climbing or state == State.Swimming
 
 	local from = Vector3.new(model.lx, model.ly, model.lz)
+	local jumpSpeed = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
+	local flySpeed = profile:Allowed("Fly", now)
+	local flying = flySpeed ~= nil
 	local verdict, allowed = model:Step({
 		t = now,
 		x = pos.X, y = pos.Y, z = pos.Z,
-		walkSpeed = hum.WalkSpeed,
-		jumpSpeed = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight),
+		walkSpeed = math.max(hum.WalkSpeed, profile:Allowed("Speed", now) or 0, flySpeed or 0),
+		jumpSpeed = math.max(jumpSpeed, profile:Allowed("Jump", now) or 0),
 		grounded = ground ~= nil,
 		climbing = climbing,
 		platform = platform,
+		flying = flying,
+		flySpeed = if flying and flySpeed > 0 then flySpeed else nil,
 	}, T, env)
+
+	local missed
+	if verdict and verdict.kind ~= "Fly" and #profile.teleports > 0 then
+		local _, miss = profile:TakeTeleport(pos, now)
+		missed = miss
+	end
 
 	local look = root.CFrame.LookVector
 	local yaw = math.atan2(-look.X, -look.Z)
@@ -136,6 +154,7 @@ function MovementService:Step(profile, now)
 		air = verdict.ctx.air,
 		rise = verdict.ctx.rise,
 		part = verdict.ctx.part,
+		missed = missed,
 	})
 	if not profile.vaultWatch then
 		snapBack(profile)

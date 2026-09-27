@@ -93,16 +93,16 @@ export function caseFile(input: CaseInput) {
   if (has('Combat:Cooldown')) lines.push('Attacked faster than the weapon\'s cooldown allows.')
   if (has('Statistical:Accuracy')) lines.push('Landed a suspiciously perfect share of their hits.')
 
-  if (lines.length === 0) lines.push('Nothing unusual in this recording.')
+  if (lines.length === 0) lines.push('No flags in this clip.')
 
   const verdict =
     input.kind === 'kick'
       ? `Kicked automatically${input.score ? ` at score ${Math.round(input.score)}` : ''}${input.kickScore ? ` (limit ${Math.round(input.kickScore)})` : ''}.`
       : input.kind === 'session'
-        ? 'Recorded by an admin as a normal play sample.'
-        : 'Captured for review.'
+        ? 'Normal play sample.'
+        : 'Recorded by staff.'
 
-  return { title: `${input.name}: case file`, lines, verdict }
+  return { title: input.name, lines, verdict }
 }
 
 function capital(s: string) {

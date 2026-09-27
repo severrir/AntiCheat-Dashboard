@@ -35,7 +35,7 @@ function Lane:Run(list, dt, now)
 				if check:IsEnabled() then
 					local ok, err = pcall(check.Step, check, profile, now)
 					if not ok then
-						warn("[AntiCheat]", check.Name, err)
+						warn(`[AntiCheat] {check.Name}: {err}`)
 					end
 				end
 			end

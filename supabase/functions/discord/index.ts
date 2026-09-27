@@ -116,7 +116,7 @@ async function resolve(input: string, game: number): Promise<{ id: string; name:
     return { id: q, name: data?.username || q };
   }
   if (!/^[A-Za-z0-9_]{3,20}$/.test(q)) return null;
-  const { data } = await db.from("players").select("user_id, username").eq("game_id", game).ilike("username", q)
+  const { data } = await db.from("players").select("user_id, username").eq("game_id", game).ilike("username", q.replace(/_/g, "\\_"))
     .limit(1).maybeSingle();
   if (data) return { id: String(data.user_id), name: data.username };
   const res = await fetch("https://users.roblox.com/v1/usernames/users", {
@@ -165,7 +165,7 @@ async function checkEmbed(p: { id: string; name: string }, game: Game) {
       name: p.name, events: replay.events as ReplayEvent[], samples: replay.samples as Sample[], kind: replay.kind,
       kickScore: (replay.meta as any)?.kickScore, walkSpeed: (replay.meta as any)?.walkSpeed, score: (replay.meta as any)?.score,
     });
-    description += `\n\n**Latest recording:**\n${file.lines.slice(0, 3).join("\n")}\n[▶ Watch replay](${replayLink(replay.id)})`;
+    description += `\n\n**Latest recording:**\n${file.lines.slice(0, 3).join("\n")}\n[Watch replay](${replayLink(replay.id)})`;
   }
   return { title: p.name, description, color: banned ? 0xf43f5e : 0x22d3ee, fields, footer: { text: game.name } };
 }
@@ -216,7 +216,7 @@ async function run(name: string, opts: Record<string, string | number | boolean>
       embeds: [{
         title: `${target.name}: replay #${replay.id}`,
         url: replayLink(replay.id),
-        description: `${file.lines.join("\n")}\n\n*${file.verdict}*\n**[▶ Watch in 3D](${replayLink(replay.id)})**`,
+        description: `${file.lines.join("\n")}\n\n*${file.verdict}*\n**[Watch replay](${replayLink(replay.id)})**`,
         image: { url: renderLink(replay.id, replay.token) },
         color: 0xf43f5e,
         timestamp: replay.created_at,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase, type Action, type Player } from '../lib/supabase'
 import { CHECK_COLORS, ago } from '../lib/format'
 import { Empty, Panel } from '../components/ui'
+import { useGame } from '../lib/game'
 
 type Kick = Pick<Action, 'id' | 'user_id' | 'signature' | 'replay_id' | 'created_at' | 'reason'>
 type Group = { sig: string[]; kicks: Kick[] }
@@ -42,21 +43,27 @@ function cluster(kicks: Kick[]): Group[] {
 }
 
 export function CheatTools({ players, open, openReplay }: { players: Player[]; open: (id: number) => void; openReplay: (id: number) => void }) {
+  const { game } = useGame()
   const [kicks, setKicks] = useState<Kick[] | null>(null)
   const names = useMemo(() => new Map(players.map((p) => [p.user_id, p.username])), [players])
 
   useEffect(() => {
+    let alive = true
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
     supabase
       .from('actions')
       .select('id, user_id, signature, replay_id, created_at, reason')
+      .eq('game_id', game)
       .eq('action', 'kick')
       .not('signature', 'is', null)
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(800)
-      .then(({ data }) => setKicks(data ?? []))
-  }, [])
+      .then(({ data }) => alive && setKicks(data ?? []))
+    return () => {
+      alive = false
+    }
+  }, [game])
 
   const groups = useMemo(() => (kicks ? cluster(kicks) : []), [kicks])
 

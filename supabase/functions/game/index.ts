@@ -149,7 +149,7 @@ function send(url: string, embeds: unknown[]) {
 async function postAlerts(game: number, p: Sync) {
   const url = await gameSecret(game, "discord_webhook");
   if (!url) return;
-  await postKicks(url, p.kicks, p.server);
+  await postKicks(url, game, p.kicks, p.server);
 
   const embeds: unknown[] = [];
   for (const s of p.shadow.filter((x) => x.on).slice(0, 3)) {
@@ -165,7 +165,7 @@ async function postAlerts(game: number, p: Sync) {
     embeds.push({
       title: `Report: ${r.name || r.target} for ${r.reason}`,
       url: playerLink(r.target, game),
-      description: `Reported by ${r.by || r.reporter}${r.note ? `: "${r.note}"` : ""}\n**[▶ What they were doing](${replayLink(r.replay!)})**`,
+      description: `Reported by ${r.by || r.reporter}${r.note ? `: "${r.note}"` : ""}\n**[Watch replay](${replayLink(r.replay!)})**`,
       color: 0xfbbf24,
       timestamp: new Date().toISOString(),
     });
@@ -173,7 +173,7 @@ async function postAlerts(game: number, p: Sync) {
   if (embeds.length) await send(url, embeds);
 }
 
-async function postKicks(url: string, kicks: Sync["kicks"], server: string) {
+async function postKicks(url: string, game: number, kicks: Sync["kicks"], server: string) {
   for (const k of kicks.slice(0, 5)) {
     const embed: Record<string, unknown> = {
       title: `Kicked ${k.name || k.id}`,
@@ -189,7 +189,7 @@ async function postKicks(url: string, kicks: Sync["kicks"], server: string) {
     };
 
     if (k.replay) {
-      const { data: r } = await db.from("replays").select("id, token, samples, events, meta").eq("id", k.replay).maybeSingle();
+      const { data: r } = await db.from("replays").select("id, token, samples, events, meta").eq("id", k.replay).eq("game_id", game).maybeSingle();
       if (r) {
         const file = caseFile({
           name: k.name || k.id,
@@ -200,7 +200,7 @@ async function postKicks(url: string, kicks: Sync["kicks"], server: string) {
           walkSpeed: (r.meta as any)?.walkSpeed,
           kind: "kick",
         });
-        embed.description = `${file.lines.slice(0, 4).join("\n")}\n\n**[▶ Watch the 3D replay](${replayLink(r.id)})**`;
+        embed.description = `${file.lines.slice(0, 4).join("\n")}\n\n**[Watch replay](${replayLink(r.id)})**`;
         embed.image = { url: renderLink(r.id, r.token) };
       }
     }

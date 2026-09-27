@@ -100,10 +100,12 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
   const speedRef = useRef(1)
   const camRef = useRef<CamMode>('chase')
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const recordRef = useRef<{ done: () => void } | null>(null)
-  playingRef.current = playing
-  speedRef.current = speed
-  camRef.current = cam
+  const recordRef = useRef<{ done: (finished: boolean) => void } | null>(null)
+  useEffect(() => {
+    playingRef.current = playing
+    speedRef.current = speed
+    camRef.current = cam
+  }, [playing, speed, cam])
 
   useEffect(() => {
     let alive = true
@@ -263,7 +265,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
         if (timeRef.current > samples[samples.length - 1][0]) {
           if (recordRef.current) {
             timeRef.current = samples[samples.length - 1][0]
-            recordRef.current.done()
+            recordRef.current.done(true)
             recordRef.current = null
           } else {
             timeRef.current = samples[0][0]
@@ -320,6 +322,8 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
 
     return () => {
       cancelAnimationFrame(raf)
+      recordRef.current?.done(false)
+      recordRef.current = null
       observer.disconnect()
       controls.dispose()
       avatar.dispose()
@@ -329,6 +333,7 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
         if (o instanceof THREE.InstancedMesh) o.dispose()
       })
       renderer.dispose()
+      renderer.forceContextLoss()
       renderer.domElement.remove()
       canvasRef.current = null
     }
@@ -347,12 +352,13 @@ export default function ReplayViewer({ id, back, openPlayer }: Props) {
     setRecording(true)
     seek(start)
     setPlaying(true)
-    await new Promise<void>((resolve) => {
+    const finished = await new Promise<boolean>((resolve) => {
       recordRef.current = { done: resolve }
     })
     const blob = await rec.stop()
     setRecording(false)
     setPlaying(false)
+    if (!finished) return
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

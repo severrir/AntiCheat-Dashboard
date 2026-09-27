@@ -47,7 +47,7 @@ function HoneypotService:Init()
 	self._lastTrip = {}
 end
 
-function HoneypotService:Trip(target, kind)
+function HoneypotService:Trip(target, kind, severity)
 	local profile = if typeof(target) == "Instance" then self._players:Get(target) else target
 	if not profile then
 		return
@@ -58,7 +58,7 @@ function HoneypotService:Trip(target, kind)
 		return
 	end
 	self._lastTrip[profile] = now
-	self._trust:Flag(profile, "Honeypot", 150, { kind = kind })
+	self._trust:Flag(profile, "Honeypot", severity or 150, { kind = kind })
 end
 
 function HoneypotService:Scan(player, text)

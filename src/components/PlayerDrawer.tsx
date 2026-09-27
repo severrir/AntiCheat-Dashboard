@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase, type Action, type Ban, type Flag, type Player, type Report, type Revert } from '../lib/supabase'
 import { ago, errorText, isOnline, robloxProfile, scoreTone } from '../lib/format'
 import { useGame } from '../lib/game'
+import { useNow } from '../lib/useNow'
 import { Button, CheckTag, Dot, Empty, ScoreBar } from './ui'
 import { Context } from './Context'
 
@@ -56,8 +57,12 @@ function summaryText(s: Revert['summary']) {
   return parts.length ? parts.join(', ') : 'nothing'
 }
 
-export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, open }: Props) {
+export function PlayerDrawer({ userId, player: playerProp, ban: banProp, kick, close, openReplay, open }: Props) {
   const { game } = useGame()
+  const [loadedPlayer, setLoadedPlayer] = useState<Player | null>(null)
+  const [loadedBan, setLoadedBan] = useState<Ban | null>(null)
+  const player = playerProp ?? loadedPlayer ?? undefined
+  const ban = banProp ?? loadedBan ?? undefined
   const [flags, setFlags] = useState<Flag[]>([])
   const [actions, setActions] = useState<Action[]>([])
   const [replays, setReplays] = useState<ReplayRow[]>([])
@@ -83,8 +88,12 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
       supabase.from('reports').select('*').eq('game_id', game).eq('target_id', userId).order('created_at', { ascending: false }).limit(30),
       supabase.from('reverts').select('*').eq('game_id', game).eq('user_id', userId).order('created_at', { ascending: false }).limit(10),
       supabase.from('ledger').select('kind, key, amount, victim, withheld, created_at').eq('game_id', game).eq('user_id', userId).gte('created_at', week).limit(2000),
-    ]).then(([f, a, r, rp, rv, l]) => {
+      supabase.from('players').select('*').eq('game_id', game).eq('user_id', userId).maybeSingle(),
+      supabase.from('bans').select('*').eq('game_id', game).eq('user_id', userId).maybeSingle(),
+    ]).then(([f, a, r, rp, rv, l, pl, bn]) => {
       if (!alive) return
+      setLoadedPlayer(pl.data ?? null)
+      setLoadedBan(bn.data ?? null)
       setFlags(f.data ?? [])
       setActions(a.data ?? [])
       setReplays(r.data ?? [])
@@ -95,7 +104,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
     return () => {
       alive = false
     }
-  }, [game, userId, ban?.updated_at, player?.shadowed, tick])
+  }, [game, userId, banProp?.updated_at, playerProp?.shadowed, tick])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
@@ -103,7 +112,8 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
     return () => window.removeEventListener('keydown', onKey)
   }, [close])
 
-  const banned = ban?.active && (!ban.expires_at || new Date(ban.expires_at).getTime() > Date.now())
+  const now = useNow(30_000)
+  const banned = ban?.active && (!ban.expires_at || new Date(ban.expires_at).getTime() > now)
   const online = player ? isOnline(player.last_seen) : false
 
   async function command(kind: 'replay' | 'spectate' | 'kick') {
@@ -329,7 +339,7 @@ export function PlayerDrawer({ userId, player, ban, kick, close, openReplay, ope
                       {r.note && <div className="mt-1 text-muted">"{r.note}"</div>}
                       {r.replay_id && (
                         <button onClick={() => openReplay(r.replay_id!)} className="mt-1 text-xs text-accent hover:underline">
-                          ▶ replay from the moment of the report
+                          replay from the moment of the report
                         </button>
                       )}
                     </li>

@@ -60,7 +60,8 @@ function CharacterService:Step(profile, now)
 	end
 
 	if not profile.partCount then
-		if now - (profile.boundAt or now) < 5 then
+		local waited = now - (profile.boundAt or now)
+		if waited < 5 or (waited < 15 and not profile.player:HasAppearanceLoaded()) then
 			return
 		end
 		profile.partCount = countParts(char)

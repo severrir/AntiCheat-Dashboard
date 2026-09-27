@@ -16,7 +16,6 @@ function MovementModel.new(x, y, z, t)
 		budget = 0,
 		air = 0,
 		bursts = 0,
-		snapped = false,
 	}, MovementModel)
 end
 
@@ -33,7 +32,6 @@ function MovementModel:Step(i, T, env)
 	local dx, dy, dz = i.x - self.lx, i.y - self.ly, i.z - self.lz
 	local horizontal = sqrt(dx * dx + dz * dz)
 	local allowed = i.walkSpeed * T.SpeedMargin + 4 + (i.platform or 0)
-	self.snapped = false
 
 	local verdict
 
@@ -59,12 +57,18 @@ function MovementModel:Step(i, T, env)
 	end
 
 	local rise = dy / dt
-	if not verdict and not i.climbing and rise > i.jumpSpeed * 1.4 + 8 then
+	local maxRise = i.jumpSpeed * 1.4 + 8
+	if i.flying then
+		maxRise = if i.flySpeed then max(maxRise, i.flySpeed * T.SpeedMargin + 4) else math.huge
+	end
+	if not verdict and not i.climbing and rise > maxRise then
 		verdict = { kind = "SuperJump", severity = 15, snap = "grounded", ctx = { rise = rise, max = i.jumpSpeed } }
 	end
 
 	if not verdict then
-		if not i.grounded and not i.climbing then
+		if i.flying then
+			self.air = 0
+		elseif not i.grounded and not i.climbing then
 			if rise > -8 then
 				self.air += dt
 			else
@@ -93,7 +97,6 @@ function MovementModel:Step(i, T, env)
 		end
 		self.budget = 0
 		self.air = 0
-		self.snapped = true
 		return verdict, allowed
 	end
 

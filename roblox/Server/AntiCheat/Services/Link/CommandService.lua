@@ -20,6 +20,12 @@ function CommandService:Init()
 	}
 end
 
+function CommandService:RestoreAcks(acks)
+	for i = #acks, 1, -1 do
+		table.insert(self._acks, 1, acks[i])
+	end
+end
+
 function CommandService:TakeAcks()
 	local out = self._acks
 	self._acks = {}
@@ -81,13 +87,23 @@ function CommandService:_spectate(cmd, target)
 	return ok, if ok then "teleporting" else tostring(err)
 end
 
+local function prune(map, maxAge)
+	local now = os.clock()
+	for k, t in map do
+		if now - t > maxAge then
+			map[k] = nil
+		end
+	end
+end
+
 function CommandService:Dispatch(list)
+	prune(self._handled, 3600)
 	if type(list) ~= "table" then
 		return
 	end
 	for _, cmd in list do
 		if type(cmd) == "table" and type(cmd.id) == "number" and not self._handled[cmd.id] then
-			self._handled[cmd.id] = true
+			self._handled[cmd.id] = os.clock()
 			task.spawn(function()
 				local handler = self._handlers[cmd.kind]
 				local ok, ranOk, result = false, false, "unknown command"

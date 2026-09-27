@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local AC = script:FindFirstAncestor("AntiCheat")
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local RevertService = { Name = "ACRevertService" }
@@ -57,13 +56,23 @@ function RevertService:_run(job)
 	return fromLeaderstats(userId, summary)
 end
 
+local function prune(map, maxAge)
+	local now = os.clock()
+	for k, t in map do
+		if now - t > maxAge then
+			map[k] = nil
+		end
+	end
+end
+
 function RevertService:_onSynced(data)
+	prune(self._seen, 3600)
 	if type(data.reverts) ~= "table" then
 		return
 	end
 	for _, job in data.reverts do
 		if type(job) == "table" and type(job.id) == "number" and not self._seen[job.id] then
-			self._seen[job.id] = true
+			self._seen[job.id] = os.clock()
 			task.spawn(function()
 				local ok, note = self:_run(job)
 				self._backend:AckRevert(job.id, ok == true, string.sub(tostring(note or ""), 1, 200))

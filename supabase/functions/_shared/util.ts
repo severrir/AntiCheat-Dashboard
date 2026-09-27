@@ -39,7 +39,10 @@ export async function gameForKey(key: string): Promise<number | null> {
   const { data, error } = await db.rpc("game_auth", { p_hash: hash });
   if (error) return null;
   const id = typeof data === "number" ? data : null;
-  games.set(hash, { id, at: Date.now() });
+  if (id !== null) {
+    if (games.size > 500) games.clear();
+    games.set(hash, { id, at: Date.now() });
+  }
   return id;
 }
 

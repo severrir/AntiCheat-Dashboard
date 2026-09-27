@@ -25,12 +25,15 @@ function PlayerProfile.new(player)
 		shadow = nil,
 		shadowCleared = false,
 		reportWeight = 0,
+		reportAt = now,
 
 		score = 0,
 		scoreAt = now,
 		peak = 0,
 		byCheck = {},
 		exempt = {},
+		allow = {},
+		teleports = {},
 
 		times = RingBuffer.new(HISTORY),
 		xs = RingBuffer.new(HISTORY),
@@ -123,6 +126,88 @@ function PlayerProfile:Exempt(check, seconds)
 	if not current or current < untilTime then
 		self.exempt[check] = untilTime
 	end
+end
+
+function PlayerProfile:ReportWeight(now)
+	return Scoring.decay(self.reportWeight, self.reportAt, now or os.clock(), 300)
+end
+
+function PlayerProfile:AddReport(weight, now)
+	now = now or os.clock()
+	self.reportWeight = self:ReportWeight(now) + weight
+	self.reportAt = now
+end
+
+function PlayerProfile:Allow(kind, value, seconds)
+	local list = self.allow[kind]
+	if not list then
+		list = {}
+		self.allow[kind] = list
+	end
+	local entry = { value = value, untilTime = os.clock() + seconds }
+	if #list >= 32 then
+		table.remove(list, 1)
+	end
+	table.insert(list, entry)
+	return function()
+		local i = table.find(list, entry)
+		if i then
+			table.remove(list, i)
+		end
+	end
+end
+
+function PlayerProfile:Allowed(kind, now)
+	local list = self.allow[kind]
+	if not list then
+		return nil
+	end
+	now = now or os.clock()
+	local best
+	for i = #list, 1, -1 do
+		local entry = list[i]
+		if entry.untilTime <= now then
+			table.remove(list, i)
+		elseif best == nil or entry.value > best then
+			best = entry.value
+		end
+	end
+	return best
+end
+
+function PlayerProfile:ExpectTeleport(pos, radius, seconds)
+	local entry = { pos = pos, radius = radius, untilTime = os.clock() + seconds }
+	table.insert(self.teleports, entry)
+	return function()
+		local i = table.find(self.teleports, entry)
+		if i then
+			table.remove(self.teleports, i)
+		end
+	end
+end
+
+function PlayerProfile:TakeTeleport(pos, now, keepMisses)
+	local list = self.teleports
+	local closest, miss
+	for i = #list, 1, -1 do
+		local entry = list[i]
+		if entry.untilTime <= now then
+			table.remove(list, i)
+		else
+			local d = (entry.pos - pos).Magnitude
+			if d <= entry.radius then
+				table.remove(list, i)
+				return true, 0
+			end
+			if not miss or d < miss then
+				closest, miss = i, d
+			end
+		end
+	end
+	if closest and not keepMisses then
+		table.remove(list, closest)
+	end
+	return false, miss
 end
 
 function PlayerProfile:Record(now, pos, yaw, allowed, grounded)

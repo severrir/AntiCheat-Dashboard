@@ -90,14 +90,17 @@ function SpectatorService:Begin(admin, targetId)
 		local first = self:_suspects()[1]
 		targetId = first and first.id or 0
 	end
-	self._watching[admin] = { target = targetId }
+	local w = { target = targetId }
+	self._watching[admin] = w
 	hide(admin)
+	self:_follow(admin, w)
 	self:_push(admin)
 end
 
 function SpectatorService:Stop(admin)
 	if self._watching[admin] then
 		self._watching[admin] = nil
+		admin.ReplicationFocus = nil
 		admin:LoadCharacter()
 	end
 	self:_push(admin)
@@ -120,6 +123,7 @@ function SpectatorService:_cycle(admin, dir)
 	end
 	index = (index - 1 + dir) % #list + 1
 	w.target = list[index].id
+	self:_follow(admin, w)
 	self:_push(admin)
 end
 
@@ -129,6 +133,16 @@ function SpectatorService:_record(admin)
 	self:_push(admin, "saving...")
 	local id = self._recorder:Upload(recording)
 	self:_push(admin, if id then "saved session #" .. id else "nothing recorded yet, walk around first")
+end
+
+function SpectatorService:_follow(admin, w)
+	local mine = self._players:Get(admin)
+	if mine then
+		mine:Exempt("All", 3)
+	end
+	local target = Players:GetPlayerByUserId(w.target)
+	local char = target and target.Character
+	admin.ReplicationFocus = char and char:FindFirstChild("HumanoidRootPart") or nil
 end
 
 function SpectatorService:_onAction(admin, action, targetId)
@@ -193,7 +207,8 @@ function SpectatorService:Start()
 	task.spawn(function()
 		while true do
 			task.wait(1)
-			for admin in self._watching do
+			for admin, w in self._watching do
+				self:_follow(admin, w)
 				self:_push(admin)
 			end
 		end

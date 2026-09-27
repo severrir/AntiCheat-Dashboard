@@ -79,17 +79,20 @@ function LedgerService:Start()
 	if not Config.AutoLeaderstats then
 		return
 	end
+	local watched = {}
 	local function watch(player)
 		local stats = player:WaitForChild("leaderstats", 30)
-		if not stats then
+		if not stats or not player.Parent then
 			return
 		end
+		local conns = {}
+		watched[player] = conns
 		local function track(value)
 			if not (value:IsA("IntValue") or value:IsA("NumberValue")) then
 				return
 			end
 			local last = value.Value
-			value.Changed:Connect(function(now)
+			conns[#conns + 1] = value.Changed:Connect(function(now)
 				local gained = now - last
 				last = now
 				if gained > 0 then
@@ -100,9 +103,15 @@ function LedgerService:Start()
 		for _, v in stats:GetChildren() do
 			track(v)
 		end
-		stats.ChildAdded:Connect(track)
+		conns[#conns + 1] = stats.ChildAdded:Connect(track)
 	end
 	Players.PlayerAdded:Connect(watch)
+	Players.PlayerRemoving:Connect(function(player)
+		for _, c in watched[player] or {} do
+			c:Disconnect()
+		end
+		watched[player] = nil
+	end)
 	for _, player in Players:GetPlayers() do
 		task.spawn(watch, player)
 	end

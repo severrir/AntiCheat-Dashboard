@@ -34,6 +34,16 @@ function ClientCheckService:_onBeat(player, seq, report)
 		return
 	end
 	local c = profile.client
+	if seq ~= seq or math.abs(seq) == math.huge then
+		self:Flag(profile, 8, { kind = "Replay" })
+		return
+	end
+	for _, key in { "ws", "jv", "g" } do
+		local v = report[key]
+		if type(v) == "number" and (v ~= v or math.abs(v) == math.huge) then
+			report[key] = nil
+		end
+	end
 	if seq <= c.seq or seq % 1 ~= 0 then
 		self:Flag(profile, 8, { kind = "Replay", seq = seq, last = c.seq })
 		return
@@ -57,9 +67,11 @@ function ClientCheckService:_onBeat(player, seq, report)
 	local hum = profile.humanoid
 	if hum and hum.Parent and hum.Health > 0 then
 		local ws = report.ws
-		mismatch("LocalWalkSpeed", type(ws) == "number" and ws > hum.WalkSpeed + 0.5, { client = ws, server = hum.WalkSpeed })
+		local speed = math.max(hum.WalkSpeed, profile:Allowed("Speed") or 0, profile:Allowed("Fly") or 0)
+		mismatch("LocalWalkSpeed", type(ws) == "number" and ws > speed + 0.5, { client = ws, server = speed })
 
 		local jump = if hum.UseJumpPower then hum.JumpPower else math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
+		jump = math.max(jump, profile:Allowed("Jump") or 0)
 		local reported = report.jv
 		mismatch("LocalJump", type(reported) == "number" and reported > jump + 1, { client = reported, server = jump })
 

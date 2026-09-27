@@ -25,6 +25,11 @@ function GlobalBanService:Relay(userId, active, reason)
 		return
 	end
 	self._lastRelay[key] = os.clock()
+	for k, t in self._lastRelay do
+		if os.clock() - t > RELAY_COOLDOWN then
+			self._lastRelay[k] = nil
+		end
+	end
 	local payload = HttpService:JSONEncode({ id = tostring(userId), active = active, reason = reason })
 	task.spawn(pcall, MessagingService.PublishAsync, MessagingService, TOPIC, payload)
 end
@@ -54,7 +59,7 @@ function GlobalBanService:Start()
 			self:_onMessage(message)
 		end)
 		if not ok then
-			warn("[AntiCheat] couldn't subscribe to global bans:", err)
+			warn(`[AntiCheat] couldn't subscribe to global bans: {err}`)
 		end
 	end)
 end

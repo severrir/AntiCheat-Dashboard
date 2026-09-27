@@ -98,7 +98,7 @@ function ReportService:Report(reporterPlayer, target, reason, note)
 	end
 
 	local w = self:_weight(reporter, now)
-	victim.reportWeight += w
+	victim:AddReport(w, now)
 
 	local report = {
 		target = tostring(victim.userId),
@@ -155,6 +155,15 @@ function ReportService:Start()
 
 	Players.PlayerAdded:Connect(function(player)
 		self:_config(player)
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		local id = player.UserId
+		task.delay(PER_TARGET, function()
+			if not Players:GetPlayerByUserId(id) then
+				self._recent[id] = nil
+				self._captured[id] = nil
+			end
+		end)
 	end)
 	for _, player in Players:GetPlayers() do
 		self:_config(player)

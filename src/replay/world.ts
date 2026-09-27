@@ -65,7 +65,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData | null, center: THRE
   scene.add(dome)
 
   scene.add(new THREE.HemisphereLight(sky.top, sky.groundLight, sky.hemi))
-  const sun = new THREE.DirectionalLight(sky.sunColor, sky.sunIntensity)
+  const sun = track(new THREE.DirectionalLight(sky.sunColor, sky.sunIntensity))
   sun.castShadow = true
   sun.shadow.mapSize.set(2048, 2048)
   sun.shadow.camera.left = -70
@@ -90,7 +90,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData | null, center: THRE
     floor.position.set(center.x, floorY, center.z)
     floor.receiveShadow = true
     scene.add(floor)
-    const grid = new THREE.GridHelper(600, 150, 0x566074, 0x4a5366)
+    const grid = track(new THREE.GridHelper(600, 150, 0x566074, 0x4a5366))
     grid.position.set(center.x, floorY + 0.02, center.z)
     scene.add(grid)
   }

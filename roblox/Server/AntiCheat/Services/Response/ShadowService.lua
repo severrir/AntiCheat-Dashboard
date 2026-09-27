@@ -3,7 +3,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AC = script:FindFirstAncestor("AntiCheat")
 local Config = require(AC.Settings.Config)
 local Check = require(AC.Classes.Core.Check)
-local Signal = require(AC.Classes.Core.Signal)
 local Framework = require(ReplicatedStorage.Shared.Framework)
 
 local T = Config.Thresholds
@@ -13,7 +12,6 @@ local ShadowService = Check.extend({
 	Category = "Shadow",
 	Feature = "ShadowMode",
 	Rate = "cold",
-	Changed = Signal.new(),
 })
 
 function ShadowService:IsShadowed(player)
@@ -31,7 +29,6 @@ function ShadowService:Set(profile, by, why, quiet)
 	local was = profile.shadow
 	profile.shadow = by
 	profile.shadowCleared = false
-	self.Changed:Fire(profile.player, true, by)
 
 	if not quiet then
 		self._backend:QueueShadow(profile, true, why or "", by)
@@ -50,7 +47,6 @@ function ShadowService:Clear(profile, quiet)
 	end
 	profile.shadow = nil
 	profile.shadowCleared = true
-	self.Changed:Fire(profile.player, false, nil)
 	if not quiet then
 		self._backend:QueueShadow(profile, false, "")
 	end
@@ -65,9 +61,25 @@ function ShadowService:Step(profile, now)
 		return
 	end
 	local score = profile:Score(now)
-	if score >= limit then
-		local top = profile:Breakdown(now)[1]
-		self:Set(profile, "auto", string.format("score %d%s", score, if top then ", mostly " .. top.check else ""))
+	if score < limit then
+		return
+	end
+	local breakdown = profile:Breakdown(now)
+	local top = breakdown[1]
+	if not top then
+		return
+	end
+	local agreeing = 0
+	for _, part in breakdown do
+		if part.value >= T.KickScore * 0.1 then
+			agreeing += 1
+		end
+	end
+	local backed = agreeing >= T.MinCorroboratingChecks
+		or Config.Definitive[top.check]
+		or (top.check == "Movement" and self._enforcement.MovementConfirmed(profile, now))
+	if backed then
+		self:Set(profile, "auto", `score {math.floor(score)}, mostly {top.check}`)
 	end
 end
 
@@ -75,6 +87,7 @@ function ShadowService:OnStart()
 	self._players = Framework.Get("ACPlayerService")
 	self._backend = Framework.Get("ACBackendService")
 	self._recorder = Framework.Get("ACRecorderService")
+	self._enforcement = Framework.Get("ACEnforcementService")
 
 	Framework.Get("ACBanService").JoinChecked:Connect(function(player, res)
 		if res.shadow ~= true then

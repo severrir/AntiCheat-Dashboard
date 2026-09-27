@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase, type Ban, type Config, type Player } from '../lib/supabase'
+import { allPages, supabase, type Ban, type Config, type Player } from '../lib/supabase'
 import { DEFAULTS } from '../lib/thresholds'
 import { errorText } from '../lib/format'
 import { useGame } from '../lib/game'
@@ -20,7 +20,7 @@ export function Tuning({ config, players, bans, reload }: { config: Config | nul
   return (
     <div className="space-y-5">
       <Suggestions config={config} reload={reload} />
-      <WhatIf config={config} players={players} bans={bans} reload={reload} />
+      <WhatIf key={config?.version ?? 0} config={config} players={players} bans={bans} reload={reload} />
     </div>
   )
 }
@@ -127,7 +127,6 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
   const [actual, setActual] = useState<Set<number>>(new Set())
   const [msg, setMsg] = useState('')
 
-  useEffect(() => setS(current), [current])
 
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
@@ -140,15 +139,20 @@ function WhatIf({ config, players, bans, reload }: { config: Config | null; play
         setRows([])
         return
       }
-      const { data } = await supabase
-        .from('flags')
-        .select('user_id, check_name, raw, severity, created_at')
-        .eq('game_id', game)
-        .in('user_id', ids)
-        .gte('created_at', since)
-        .order('created_at')
-        .limit(20000)
-      setRows((data as Row[]) ?? [])
+      const data = await allPages<Row>(
+        (from, to) =>
+          supabase
+            .from('flags')
+            .select('user_id, check_name, raw, severity, created_at')
+            .eq('game_id', game)
+            .in('user_id', ids)
+            .gte('created_at', since)
+            .order('created_at')
+            .order('id')
+            .range(from, to),
+        20000,
+      )
+      setRows(data)
     })()
   }, [game])
 

@@ -196,7 +196,14 @@ function ReportPanel.new(parent, onSend)
 		if self.target and self.reason and not self.busy then
 			self.busy = true
 			send.Text = "Sending..."
+			local sent = os.clock()
+			self.sentAt = sent
 			self.onSend(self.target, self.reason, note.Text)
+			task.delay(6, function()
+				if self.busy and self.sentAt == sent then
+					self:Result(false, "No answer, try again in a moment")
+				end
+			end)
 		end
 	end)
 	self.send = send

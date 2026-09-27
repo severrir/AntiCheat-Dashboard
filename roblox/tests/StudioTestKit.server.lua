@@ -82,7 +82,8 @@ end
 
 function commands.achit(player, profile)
 	if not profile.root then
-		return say(player, "spawn first")
+		say(player, "spawn first")
+		return
 	end
 	local ok = API.ValidateHit(player, dummy(profile), { Range = 10, Cooldown = 0, LineOfSight = false })
 	say(player, if ok then "Hit landed" else "Hit blocked (shadow mode)")
@@ -91,7 +92,7 @@ end
 function commands.acreport(player, profile)
 	local recorder = Framework.Get("ACRecorderService")
 	local backend = Framework.Get("ACBackendService")
-	profile.reportWeight += 1
+	profile:AddReport(1)
 	backend:Track(function()
 		local replay = recorder:Upload(recorder:Capture(profile, "capture", "reported for Flying by TestReporter"))
 		backend:QueueReport({
@@ -120,6 +121,43 @@ function commands.acreplay(player, profile)
 	end)
 end
 
+function commands.acboost(player, _, arg)
+	local speed = tonumber(arg) or 60
+	API.AllowSpeed(player, speed, 15)
+	say(player, "Speed up to " .. speed .. " allowed for 15s. Set your WalkSpeed on the client to try it")
+end
+
+function commands.acjump(player, _, arg)
+	local power = tonumber(arg) or 120
+	API.AllowJump(player, power, 15)
+	say(player, "JumpPower up to " .. power .. " allowed for 15s")
+end
+
+function commands.acfly(player, _, arg)
+	API.AllowFly(player, 15, tonumber(arg))
+	say(player, "Flying allowed for 15s")
+end
+
+function commands.actp(player, profile)
+	if not profile.root then
+		say(player, "spawn first")
+		return
+	end
+	API.Teleport(player, profile.root.CFrame * CFrame.new(0, 0, -100))
+	say(player, "Teleported 100 studs forward through AntiCheat.Teleport, nothing should be flagged")
+end
+
+function commands.actpwrong(player, profile)
+	if not profile.root then
+		say(player, "spawn first")
+		return
+	end
+	local target = profile.root.CFrame * CFrame.new(0, 0, -100)
+	API.ExpectTeleport(player, target.Position, 8, 3)
+	profile.char:PivotTo(target * CFrame.new(40, 0, 0))
+	say(player, "Expected a teleport 100 studs ahead but landed 40 studs off, this should be flagged")
+end
+
 local folder = TextChatService:WaitForChild("TextChatCommands", 10)
 for name, run in commands do
 	local cmd = Instance.new("TextChatCommand")
@@ -139,4 +177,4 @@ for name, run in commands do
 		end
 	end)
 end
-print("[ACTest] test commands ready: /acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport /acreplay")
+print("[ACTest] test commands ready: /acstate /acshadow /acunshadow /acgrant /accoins /achit /acreport /acreplay /acboost /acjump /acfly /actp /actpwrong")

@@ -1,6 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const SUPABASE_URL = 'https://kapvjoemzsdqiealluzl.supabase.co'
+export async function allPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+  max: number,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; from < max; from += 1000) {
+    const { data } = await page(from, Math.min(from + 999, max - 1))
+    if (!data?.length) break
+    out.push(...data)
+    if (data.length < 1000) break
+  }
+  return out
+}
+
 export const supabase = createClient(SUPABASE_URL, 'sb_publishable_2LUd8xlwuO7uvs6l8pwO4Q__-OyVtrr', {
   auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true },
 })

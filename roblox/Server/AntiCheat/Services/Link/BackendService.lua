@@ -13,7 +13,6 @@ local B = Config.Backend
 local BackendService = {
 	Name = "ACBackendService",
 	Synced = Signal.new(),
-	Online = false,
 	ServerId = if game.JobId ~= "" then game.JobId else "studio-" .. HttpService:GenerateGUID(false),
 }
 
@@ -43,6 +42,11 @@ function BackendService:Post(body)
 	if not self._key then
 		return nil
 	end
+	local encoded, json = pcall(HttpService.JSONEncode, HttpService, body)
+	if not encoded then
+		warn(`[AntiCheat] couldn't encode {body.op}: {json}`)
+		return nil
+	end
 	local ok, res = pcall(HttpService.RequestAsync, HttpService, {
 		Url = B.Url,
 		Method = "POST",
@@ -50,7 +54,7 @@ function BackendService:Post(body)
 			["Content-Type"] = "application/json",
 			["x-game-key"] = self._key,
 		},
-		Body = HttpService:JSONEncode(body),
+		Body = json,
 	})
 	if not ok or not res.Success then
 		return nil
@@ -65,7 +69,7 @@ function BackendService:Track(fn)
 		local ok, err = pcall(fn)
 		self._inflight -= 1
 		if not ok then
-			warn("[AntiCheat] " .. tostring(err))
+			warn(`[AntiCheat] {err}`)
 		end
 	end)
 end
@@ -120,20 +124,16 @@ function BackendService:_snapshot(profile, now)
 	}
 end
 
-function BackendService:Sync()
-	if self._syncing then
-		return true
-	end
-	self._syncing = true
-
+function BackendService:_sync()
 	local now = os.clock()
 	local batch = self._batch:Drain()
-	local players = batch.departed
+	local players = table.clone(batch.departed)
 	for _, profile in self._players:List() do
 		if not profile.immune then
 			table.insert(players, self:_snapshot(profile, now))
 		end
 	end
+	local cmdAcks = self._commands:TakeAcks()
 
 	local data = self:Post({
 		op = "sync",
@@ -150,17 +150,15 @@ function BackendService:Sync()
 		shadow = batch.shadow,
 		ledger = batch.ledger,
 		revertAcks = batch.revertAcks,
-		cmdAcks = self._commands:TakeAcks(),
+		cmdAcks = cmdAcks,
 	})
-	self._syncing = false
 
 	if not data then
 		self._batch:Restore(batch)
-		self.Online = false
+		self._commands:RestoreAcks(cmdAcks)
 		return false
 	end
 
-	self.Online = true
 	if type(data.now) == "string" then
 		self._since = data.now
 	end
@@ -168,6 +166,20 @@ function BackendService:Sync()
 	self._commands:Dispatch(data.commands)
 	self.Synced:Fire(data)
 	return true
+end
+
+function BackendService:Sync()
+	if self._syncing then
+		return true
+	end
+	self._syncing = true
+	local ok, result = pcall(self._sync, self)
+	self._syncing = false
+	if not ok then
+		warn(`[AntiCheat] sync failed: {result}`)
+		return false
+	end
+	return result
 end
 
 function BackendService:Start()
